@@ -1,0 +1,13 @@
+node_modules
+# Lockfile intentionally not committed yet: @daygleve/schema is a git
+# dependency resolved at install time. Add a committed lock once the schema
+# package publishes tagged releases.
+package-lock.json
+/build
+/.svelte-kit
+/package
+.env
+.env.*
+!.env.example
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
