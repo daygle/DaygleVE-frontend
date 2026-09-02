@@ -1,8 +1,17 @@
-# DaygleVE-frontend
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/brand/daygleve-logo-dark.svg">
+    <img alt="DaygleVE" src="assets/brand/daygleve-logo.svg" width="320">
+  </picture>
+</p>
 
-The **web control panel** for [DaygleVE](https://github.com/daygle) — a modern,
-single-node virtualization platform. Built with
-[SvelteKit](https://svelte.dev/docs/kit) + TypeScript.
+<h1 align="center">DaygleVE-frontend</h1>
+
+<p align="center">
+The <strong>web control panel</strong> for <a href="https://github.com/daygle">DaygleVE</a> —
+a modern, single-node virtualization platform. Built with
+<a href="https://svelte.dev/docs/kit">SvelteKit</a> + TypeScript.
+</p>
 
 ## Responsibilities
 

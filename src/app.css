@@ -1,11 +1,18 @@
 :root {
-  --bg: #0e1116;
-  --panel: #161b22;
-  --panel-2: #1f2630;
-  --border: #2a323d;
+  --bg: #0b1120;
+  --panel: #131a2a;
+  --panel-2: #1e293b;
+  --border: #2a3648;
   --fg: #e6edf3;
-  --muted: #8b949e;
-  --accent: #4c9ffe;
+  --muted: #94a3b8;
+
+  /* DaygleVE brand palette (matches the logomark) */
+  --brand-cyan: #22d3ee;
+  --brand-indigo: #6366f1;
+  --brand-violet: #7c3aed;
+  --brand-gradient: linear-gradient(135deg, #8b5cf6 0%, #6366f1 50%, #22d3ee 100%);
+
+  --accent: #22d3ee;
   --ok: #3fb950;
   --warn: #d29922;
   --danger: #f85149;
