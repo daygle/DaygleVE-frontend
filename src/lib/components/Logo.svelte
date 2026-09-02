@@ -1,7 +1,9 @@
 <script lang="ts">
   // DaygleVE logomark: an isometric cube "partitioned into isolated instances"
-  // with a trailing spawn-node motif. Rendered inline so it inherits theme
-  // colors and needs no extra network request.
+  // with a trailing spawn-node motif. Rendered inline (no extra network
+  // request). The mark keeps its fixed brand colors; the optional wordmark
+  // uses the theme's text token. When the wordmark is shown the mark is hidden
+  // from assistive tech so "DaygleVE" is not announced twice.
   let {
     size = 28,
     wordmark = false,
@@ -15,8 +17,9 @@
     viewBox="0 0 64 64"
     width={size}
     height={size}
-    role="img"
-    aria-label="DaygleVE"
+    role={wordmark ? undefined : "img"}
+    aria-label={wordmark ? undefined : "DaygleVE"}
+    aria-hidden={wordmark ? "true" : undefined}
   >
     {#if nodes}
       <polygon points="41.80,22.00 46.00,19.90 50.20,22.00 46.00,24.10" fill="#22D3EE" opacity="0.95" />

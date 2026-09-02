@@ -29,7 +29,8 @@
 
 <div class="wrap">
   <form class="card" onsubmit={submit}>
-    <div class="logo">
+    <h1 class="visually-hidden">DaygleVE</h1>
+    <div class="logo" aria-hidden="true">
       <Logo size={44} wordmark />
     </div>
     <p class="muted">Sign in to the control panel</p>

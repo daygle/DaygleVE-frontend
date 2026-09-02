@@ -65,7 +65,7 @@
     margin: 0;
     padding: 0;
   }
-  a {
+  ul a {
     display: block;
     padding: 0.35rem 0.7rem;
     border-radius: 6px;
@@ -73,11 +73,11 @@
     text-decoration: none;
     font-size: 0.9rem;
   }
-  a:hover {
+  ul a:hover {
     color: var(--fg);
     background: var(--panel-2);
   }
-  a.active {
+  ul a.active {
     color: var(--fg);
     background: var(--panel-2);
   }
