@@ -1,6 +1,6 @@
 {
   "name": "daygleve-frontend",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "DaygleVE web control panel (SvelteKit). Imports shared API types from DaygleVE-schema; contains no backend logic.",
   "license": "Apache-2.0",
