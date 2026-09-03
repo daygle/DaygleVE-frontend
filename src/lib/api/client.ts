@@ -21,6 +21,7 @@ import type {
   Dataset,
   GpuDevice,
   HealthStatus,
+  IsoImage,
   LoginRequest,
   LoginResponse,
   Lxc,
@@ -120,6 +121,10 @@ export class DaygleClient {
   // --- vms ------------------------------------------------------------------
   listVms(): Promise<VmSummary[]> {
     return this.request("GET", "/vms");
+  }
+  /** Installer/live ISOs available to attach as VM install media. */
+  listIsos(): Promise<IsoImage[]> {
+    return this.request("GET", "/vms/iso-images");
   }
   getVm(id: string): Promise<Vm> {
     return this.request("GET", `/vms/${id}`);

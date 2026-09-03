@@ -4,10 +4,15 @@
   import { client } from "$lib/api/session";
   import { ApiRequestError } from "$lib/api";
   import StateBadge from "$components/StateBadge.svelte";
-  import type { Vm } from "@daygleve/schema";
+  import type { Vm, IsoImage } from "@daygleve/schema";
 
   let vm = $state<Vm | null>(null);
   let error = $state<string | null>(null);
+
+  // Install-media (CD-ROM) state.
+  let isos = $state<IsoImage[]>([]);
+  let selectedIso = $state("");
+  let mediaBusy = $state(false);
 
   // noVNC console state.
   let consoleEl = $state<HTMLDivElement>();
@@ -18,12 +23,54 @@
 
   const id = $derived($page.params.id ?? "");
 
+  async function reload() {
+    try {
+      vm = await client().getVm(id);
+    } catch (e) {
+      error = e instanceof ApiRequestError ? e.body.message : String(e);
+    }
+  }
+
   $effect(() => {
+    reload();
+    // The ISO library is small and node-wide; failure just leaves the picker empty.
     client()
-      .getVm(id)
-      .then((v) => (vm = v))
-      .catch((e) => (error = e instanceof ApiRequestError ? e.body.message : String(e)));
+      .listIsos()
+      .then((list) => (isos = list))
+      .catch(() => {});
   });
+
+  async function attachIso() {
+    if (!selectedIso) return;
+    mediaBusy = true;
+    error = null;
+    try {
+      await client().updateVm(id, { cdrom: selectedIso, eject_cdrom: false });
+      selectedIso = "";
+      await reload();
+    } catch (e) {
+      error = e instanceof ApiRequestError ? e.body.message : String(e);
+    } finally {
+      mediaBusy = false;
+    }
+  }
+
+  async function ejectIso() {
+    mediaBusy = true;
+    error = null;
+    try {
+      await client().updateVm(id, { eject_cdrom: true });
+      await reload();
+    } catch (e) {
+      error = e instanceof ApiRequestError ? e.body.message : String(e);
+    } finally {
+      mediaBusy = false;
+    }
+  }
+
+  function isoName(path: string): string {
+    return isos.find((i) => i.path === path)?.name ?? path;
+  }
 
   async function openConsole() {
     error = null;
@@ -110,6 +157,35 @@
           </ul>
         {:else}<p class="muted">None</p>{/if}
       </div>
+      <div class="card">
+        <h3>Install media</h3>
+        {#if vm.cdrom}
+          <p class="media-current">
+            <span class="disc">●</span>
+            {isoName(vm.cdrom)}
+          </p>
+          <button onclick={ejectIso} disabled={mediaBusy}>
+            {mediaBusy ? "Working…" : "Eject"}
+          </button>
+          <p class="muted small">The VM boots from this ISO first. Eject once the OS is installed.</p>
+        {:else}
+          <p class="muted">No install media attached.</p>
+          <div class="media-attach">
+            <select bind:value={selectedIso} disabled={mediaBusy || isos.length === 0}>
+              <option value="">{isos.length ? "Choose an ISO…" : "No ISOs in library"}</option>
+              {#each isos as iso (iso.path)}
+                <option value={iso.path}>{iso.name}</option>
+              {/each}
+            </select>
+            <button onclick={attachIso} disabled={mediaBusy || !selectedIso}>
+              {mediaBusy ? "Working…" : "Attach"}
+            </button>
+          </div>
+          <p class="muted small">
+            Attaching an ISO and starting the VM lets you install a guest OS onto the disk.
+          </p>
+        {/if}
+      </div>
       <div class="card console-card">
         <div class="console-head">
           <h3>Console</h3>
@@ -176,5 +252,28 @@
     border: 1px solid var(--border);
     border-radius: 6px;
     overflow: hidden;
+  }
+  .media-current {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.9rem;
+    margin: 0 0 0.6rem;
+  }
+  .media-current .disc {
+    color: var(--accent);
+    font-size: 0.7rem;
+  }
+  .media-attach {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  .media-attach select {
+    flex: 1;
+  }
+  .small {
+    font-size: 0.8rem;
+    margin: 0.6rem 0 0;
   }
 </style>
