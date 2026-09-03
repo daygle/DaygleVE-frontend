@@ -5,7 +5,7 @@
   import Logo from "$components/Logo.svelte";
   import Icon from "$components/Icon.svelte";
 
-  const links = [
+  const baseLinks = [
     { href: "/", label: "Dashboard", icon: "dashboard" },
     { href: "/vms", label: "Virtual Machines", icon: "vm" },
     { href: "/containers", label: "Containers", icon: "container" },
@@ -13,6 +13,14 @@
     { href: "/network", label: "Network", icon: "network" },
     { href: "/metrics", label: "Metrics", icon: "metrics" },
   ];
+
+  // The Users admin link only shows for accounts with the admin role; the API
+  // enforces the permission regardless.
+  const links = $derived(
+    $auth.user?.roles.includes("admin")
+      ? [...baseLinks, { href: "/users", label: "Users", icon: "users" }]
+      : baseLinks,
+  );
 
   // Active when the path matches exactly, or is a child of a non-root link.
   function isActive(href: string, path: string): boolean {
@@ -45,13 +53,13 @@
 
   {#if $auth.user}
     <div class="foot">
-      <div class="who">
+      <a class="who" href="/account" title="Account settings">
         <span class="avatar">{$auth.user.username.slice(0, 1).toUpperCase()}</span>
         <div class="meta">
           <span class="name">{$auth.user.username}</span>
           <span class="role faint">{$auth.user.roles.join(", ")}</span>
         </div>
-      </div>
+      </a>
       <button class="signout" onclick={signOut} title="Sign out" aria-label="Sign out">
         <Icon name="logout" size={18} />
       </button>
@@ -136,6 +144,13 @@
     gap: 0.6rem;
     flex: 1;
     min-width: 0;
+    color: inherit;
+    border-radius: var(--r-sm);
+    padding: 0.2rem;
+  }
+  .who:hover {
+    text-decoration: none;
+    background: rgba(255, 255, 255, 0.03);
   }
   .avatar {
     width: 32px;
