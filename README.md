@@ -77,13 +77,14 @@ npm run build          # production build (adapter-node)
 
 ## Notes
 
-- **noVNC**: `vms/[id]` requests a console ticket
-  (`POST /api/v1/vms/{id}/console`); mounting the noVNC client against the
-  returned websocket path is marked `TODO(console)`.
-- **Live metrics**: the backend exposes an SSE stream at
-  `/api/v1/metrics/stream`. Because `EventSource` cannot send an
-  `Authorization` header, the metrics page currently polls the point-in-time
-  endpoint; wiring SSE needs a token-in-query/cookie scheme on the backend.
+- **noVNC console**: `vms/[id]` requests a console ticket
+  (`POST /api/v1/vms/{id}/console`) and mounts a noVNC `RFB` client against the
+  returned websocket path, giving a live in-browser view of the VM's display.
+  The client is imported dynamically so it never runs during SSR.
+- **Live metrics**: the metrics page consumes the backend's SSE stream
+  (`/api/v1/metrics/stream`) via `EventSource` for a live dashboard. Because
+  `EventSource` cannot send an `Authorization` header, the bearer token is
+  passed as a `?token=` query param, which the backend authenticates.
 
 ## License
 

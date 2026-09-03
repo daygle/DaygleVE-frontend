@@ -1,43 +1,43 @@
 <script lang="ts">
+  import { browser } from "$app/environment";
   import { client } from "$lib/api/session";
-  import { ApiRequestError } from "$lib/api";
-  import type { NodeMetrics } from "@daygleve/schema";
+  import type { MetricsEvent, NodeMetrics } from "@daygleve/schema";
 
   let node = $state<NodeMetrics | null>(null);
   let error = $state<string | null>(null);
+  let live = $state(false);
 
   function gib(bytes: number): string {
     return (bytes / 1024 ** 3).toFixed(1);
   }
 
-  // The backend also exposes a Server-Sent Events stream at
-  // `client().metricsStreamUrl()` emitting `MetricsEvent` frames. EventSource
-  // cannot set an Authorization header, so live streaming needs a token-in-
-  // query or cookie scheme on the backend (TODO). Until then we poll the
-  // point-in-time endpoint, which uses the bearer header like every other call.
+  // Live node metrics via the backend's Server-Sent Events stream. The bearer
+  // token rides in the URL (EventSource can't set headers); the backend
+  // authenticates it there. EventSource reconnects on its own, so a transient
+  // drop just clears the "live" badge until the next frame arrives.
   $effect(() => {
-    const c = client();
-    let cancelled = false;
+    if (!browser) return;
+    const source = new EventSource(client().metricsStreamUrl());
 
-    async function tick() {
+    source.onmessage = (ev) => {
       try {
-        const n = await c.nodeMetrics();
-        if (!cancelled) {
-          node = n;
+        const frame = JSON.parse(ev.data) as MetricsEvent;
+        if (frame.scope === "node" && frame.node) {
+          node = frame.node;
           error = null;
+          live = true;
         }
-      } catch (e) {
-        if (!cancelled)
-          error = e instanceof ApiRequestError ? e.body.message : String(e);
+      } catch {
+        // Ignore an unparseable frame; the next one will refresh the view.
       }
-    }
-
-    tick();
-    const timer = setInterval(tick, 2000);
-    return () => {
-      cancelled = true;
-      clearInterval(timer);
     };
+    source.onerror = () => {
+      // Browser will retry automatically; surface a soft, non-fatal notice.
+      live = false;
+      if (!node) error = "Connecting to the metrics stream…";
+    };
+
+    return () => source.close();
   });
 
   const memPct = $derived(
@@ -48,7 +48,10 @@
 </script>
 
 <div class="container">
-  <h1>Metrics</h1>
+  <div class="head">
+    <h1>Metrics</h1>
+    <span class="pill" class:on={live}>{live ? "● live" : "○ connecting"}</span>
+  </div>
   {#if error}<p class="error">{error}</p>{/if}
 
   {#if node}
@@ -75,13 +78,29 @@
         <p class="muted">tx {gib(node.net_tx_bps)} GiB/s</p>
       </div>
     </div>
-    <p class="muted">Sampled {node.timestamp} · refreshing every 2s</p>
+    <p class="muted">Sampled {node.timestamp} · live via SSE</p>
   {:else if !error}
     <p class="muted">Loading…</p>
   {/if}
 </div>
 
 <style>
+  .head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .pill {
+    font-size: 0.75rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .pill.on {
+    color: var(--ok);
+    border-color: var(--ok);
+  }
   .stat {
     font-size: 2rem;
     font-weight: 700;
