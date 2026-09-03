@@ -290,7 +290,7 @@
           <select bind:value={cdrom}>
             <option value="">None (boot from disk)</option>
             {#each isos as iso (iso.path)}
-              <option value={iso.path}>{iso.name} · {fmtSize(iso.size_bytes)}</option>
+              <option value={iso.path}>{iso.name} · {iso.storage} · {fmtSize(iso.size_bytes)}</option>
             {/each}
           </select>
         </label>
