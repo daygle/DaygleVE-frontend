@@ -1,3 +1,9 @@
+<script module lang="ts">
+  // Deterministic per-instance gradient ids (creation order), so no random
+  // value differs between renders.
+  let counter = 0;
+</script>
+
 <script lang="ts">
   // Compact history line with a soft gradient fill. Scales to the data's own
   // min/max so small variations stay visible. Purely decorative → aria-hidden.
@@ -26,7 +32,7 @@
   });
 
   const area = $derived(pts ? `0,${H} ${pts} ${W},${H}` : "");
-  const uid = Math.random().toString(36).slice(2, 8);
+  const uid = `sl${(counter += 1)}`;
 </script>
 
 <svg
@@ -36,13 +42,13 @@
   style="height: {height}px"
   aria-hidden="true"
 >
-  <defs>
-    <linearGradient id="fill-{uid}" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color={color} stop-opacity="0.28" />
-      <stop offset="1" stop-color={color} stop-opacity="0" />
-    </linearGradient>
-  </defs>
   {#if pts}
+    <defs>
+      <linearGradient id="fill-{uid}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color={color} stop-opacity="0.28" />
+        <stop offset="1" stop-color={color} stop-opacity="0" />
+      </linearGradient>
+    </defs>
     <polygon points={area} fill="url(#fill-{uid})" />
     <polyline
       points={pts}

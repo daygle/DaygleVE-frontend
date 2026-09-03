@@ -72,7 +72,7 @@
   <div class="grid-2">
     <div class="card gauge-card">
       <h3>Processor</h3>
-      <Gauge value={node?.cpu_pct ?? 0} sub={node ? `${node.cpu_count} vCPU` : ""} size={150} />
+      <Gauge value={node?.cpu_pct ?? 0} label="CPU" showLabel={false} sub={node ? `${node.cpu_count} vCPU` : ""} size={150} />
       <div class="under">
         <Sparkline data={cpuHist} color="var(--brand-cyan)" />
         <span class="muted small">load {node ? node.load_average.map((l) => l.toFixed(2)).join(" / ") : "—"}</span>
@@ -81,7 +81,7 @@
 
     <div class="card gauge-card">
       <h3>Memory</h3>
-      <Gauge value={memPct} size={150} />
+      <Gauge value={memPct} label="Memory" showLabel={false} size={150} />
       <div class="under">
         <Sparkline data={memHist} color="var(--brand-violet)" />
         <span class="muted small">

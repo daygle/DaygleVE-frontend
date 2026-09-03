@@ -7,7 +7,16 @@
     label = "",
     sub = "",
     size = 132,
-  }: { value: number; label?: string; sub?: string; size?: number } = $props();
+    showLabel = true,
+  }: {
+    value: number;
+    label?: string;
+    sub?: string;
+    size?: number;
+    // When false, `label` still names the gauge for screen readers but the
+    // visible caption is hidden (e.g. under a card heading that already names it).
+    showLabel?: boolean;
+  } = $props();
 
   const v = $derived(Math.max(0, Math.min(100, value)));
   const R = 42;
@@ -43,7 +52,7 @@
       <text x="50" y="64" text-anchor="middle" class="sub">{sub}</text>
     {/if}
   </svg>
-  {#if label}<span class="cap">{label}</span>{/if}
+  {#if label && showLabel}<span class="cap">{label}</span>{/if}
 </div>
 
 <style>

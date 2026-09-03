@@ -217,11 +217,13 @@ export class DaygleClient {
   }
 
   /**
-   * Absolute ws:// / wss:// URL for a VM console ticket, ready for a noVNC
-   * `RFB` client. `websocket_path` from the ticket already carries the
-   * one-time ticket query param. Resolved against the API base's origin (not
-   * assumed to be the page host) so a cross-origin `baseUrl` still targets the
-   * API host; an already-absolute ws(s) URL is returned unchanged.
+   * ws:// / wss:// URL for a VM console ticket, ready for a noVNC `RFB` client.
+   * `websocket_path` from the ticket already carries the one-time ticket query
+   * param. When an origin can be resolved (in the browser, or from an absolute
+   * `baseUrl`) the result is absolute and targets the API host, not the page
+   * host. Otherwise — SSR with a relative `baseUrl`, or a parse failure — the
+   * input path is returned unchanged; an already-absolute ws(s) URL is passed
+   * through as-is.
    */
   consoleWebsocketUrl(ticketPath: string): string {
     if (/^wss?:\/\//i.test(ticketPath)) return ticketPath;

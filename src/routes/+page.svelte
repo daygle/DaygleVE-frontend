@@ -104,7 +104,11 @@
         </div>
         <div class="fact">
           <span class="k">Swap</span>
-          <span class="v">{node ? `${gib(node.swap_used_bytes)} / ${gib(node.swap_total_bytes)} GiB` : "—"}</span>
+          <span class="v">
+            {#if !node}—
+            {:else if node.swap_total_bytes}{gib(node.swap_used_bytes)} / {gib(node.swap_total_bytes)} GiB
+            {:else}none{/if}
+          </span>
         </div>
         <div class="fact">
           <span class="k">Network</span>
