@@ -160,6 +160,12 @@
     }
   }
 
+  // Close the edit modal on Escape from anywhere (but never mid-save), matching
+  // the create-VM modal's keyboard behaviour.
+  function onWindowKeydown(e: KeyboardEvent) {
+    if (e.key === "Escape" && showEdit && !editBusy) showEdit = false;
+  }
+
   async function openConsole() {
     error = null;
     try {
@@ -298,13 +304,15 @@
   {/if}
 </div>
 
+<svelte:window onkeydown={onWindowKeydown} />
+
 {#if showEdit}
   <div class="overlay" role="presentation" onclick={(e) => e.target === e.currentTarget && !editBusy && (showEdit = false)}>
     <div class="dialog" role="dialog" aria-modal="true" aria-label="Edit VM settings">
       <h2>Edit settings</h2>
       <p class="muted small">Firmware, disk and NIC changes require the VM to be stopped.</p>
       <form onsubmit={submitEdit}>
-        <div class="grid">
+        <div class="form-grid">
           <label class="field"><span>Name</span><input bind:value={eName} autocomplete="off" /></label>
           <label class="field"><span>Firmware</span>
             <select bind:value={eFirmware}>
@@ -317,7 +325,7 @@
         </div>
 
         <div class="sub-head"><h3>Disks</h3><button type="button" class="add" onclick={addDisk}>+ Add</button></div>
-        {#each eDisks as disk, i (i)}
+        {#each eDisks as disk, i (disk)}
           <div class="row">
             <input class="grow" bind:value={disk.dataset} placeholder="pool/dataset" />
             <input type="number" min="1" bind:value={disk.size_gib} title="Size (GiB)" />
@@ -331,7 +339,7 @@
         {:else}<p class="muted small">No disks.</p>{/each}
 
         <div class="sub-head"><h3>Network</h3><button type="button" class="add" onclick={addNic}>+ Add</button></div>
-        {#each eNics as nic, i (i)}
+        {#each eNics as nic, i (nic)}
           <div class="row">
             <select class="grow" bind:value={nic.bridge}>
               {#each bridges as b (b.id)}<option value={b.name}>{b.name}</option>{/each}
@@ -376,7 +384,7 @@
     color: var(--fg);
     border-color: var(--accent);
   }
-  .small {
+  .dialog .small {
     font-size: 0.8rem;
     margin: 0.2rem 0 0.8rem;
   }
@@ -403,7 +411,7 @@
   .dialog h2 {
     margin: 0 0 0.2rem;
   }
-  .grid {
+  .form-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 0.8rem;
