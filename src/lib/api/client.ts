@@ -15,10 +15,12 @@ import type {
   CreateDatasetRequest,
   CreateLxcRequest,
   CreateSnapshotRequest,
+  CreateShareRequest,
   CreateVlanRequest,
   CreateVmRequest,
   CurrentUser,
   Dataset,
+  NetworkShare,
   GpuDevice,
   HealthStatus,
   IsoImage,
@@ -183,6 +185,16 @@ export class DaygleClient {
   }
   cloneSnapshot(snapshotId: string, req: CloneSnapshotRequest): Promise<Dataset> {
     return this.request("POST", `/storage/snapshots/${snapshotId}/clone`, req);
+  }
+  /** Network shares (NFS/CIFS) used as ISO content sources. */
+  listShares(): Promise<NetworkShare[]> {
+    return this.request("GET", "/storage/shares");
+  }
+  createShare(req: CreateShareRequest): Promise<NetworkShare> {
+    return this.request("POST", "/storage/shares", req);
+  }
+  deleteShare(id: string): Promise<void> {
+    return this.request("DELETE", `/storage/shares/${id}`);
   }
 
   // --- network --------------------------------------------------------------

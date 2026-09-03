@@ -174,7 +174,7 @@
             <select bind:value={selectedIso} disabled={mediaBusy || isos.length === 0}>
               <option value="">{isos.length ? "Choose an ISO…" : "No ISOs in library"}</option>
               {#each isos as iso (iso.path)}
-                <option value={iso.path}>{iso.name}</option>
+                <option value={iso.path}>{iso.name} · {iso.storage}</option>
               {/each}
             </select>
             <button onclick={attachIso} disabled={mediaBusy || !selectedIso}>
