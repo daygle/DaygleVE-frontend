@@ -1,20 +1,33 @@
 <script lang="ts">
   import { browser } from "$app/environment";
   import { client } from "$lib/api/session";
+  import Gauge from "$components/Gauge.svelte";
+  import Sparkline from "$components/Sparkline.svelte";
   import type { MetricsEvent, NodeMetrics } from "@daygleve/schema";
 
   let node = $state<NodeMetrics | null>(null);
   let error = $state<string | null>(null);
   let live = $state(false);
 
-  function gib(bytes: number): string {
-    return (bytes / 1024 ** 3).toFixed(1);
-  }
+  // Rolling history for the sparklines (most recent last).
+  const CAP = 48;
+  let cpuHist = $state<number[]>([]);
+  let memHist = $state<number[]>([]);
+  let netHist = $state<number[]>([]);
+  let diskHist = $state<number[]>([]);
 
-  // Live node metrics via the backend's Server-Sent Events stream. The bearer
-  // token rides in the URL (EventSource can't set headers); the backend
-  // authenticates it there. EventSource reconnects on its own, so a transient
-  // drop just clears the "live" badge until the next frame arrives.
+  const push = (arr: number[], v: number) =>
+    [...arr, v].slice(-CAP);
+
+  function gib(bytes: number): string {
+    return (bytes / 1024 ** 3).toFixed(2);
+  }
+  const memPct = $derived(
+    node && node.memory_total_bytes
+      ? (node.memory_used_bytes / node.memory_total_bytes) * 100
+      : 0,
+  );
+
   $effect(() => {
     if (!browser) return;
     const source = new EventSource(client().metricsStreamUrl());
@@ -23,91 +36,147 @@
       try {
         const frame = JSON.parse(ev.data) as MetricsEvent;
         if (frame.scope === "node" && frame.node) {
-          node = frame.node;
+          const n = frame.node;
+          node = n;
           error = null;
           live = true;
+          cpuHist = push(cpuHist, n.cpu_pct);
+          memHist = push(
+            memHist,
+            n.memory_total_bytes ? (n.memory_used_bytes / n.memory_total_bytes) * 100 : 0,
+          );
+          netHist = push(netHist, n.net_rx_bps + n.net_tx_bps);
+          diskHist = push(diskHist, n.disk_read_bps + n.disk_write_bps);
         }
       } catch {
-        // Ignore an unparseable frame; the next one will refresh the view.
+        // Ignore an unparseable frame; the next one refreshes the view.
       }
     };
     source.onerror = () => {
-      // Browser will retry automatically; surface a soft, non-fatal notice.
       live = false;
       if (!node) error = "Connecting to the metrics stream…";
     };
 
     return () => source.close();
   });
-
-  const memPct = $derived(
-    node && node.memory_total_bytes
-      ? Math.round((node.memory_used_bytes / node.memory_total_bytes) * 100)
-      : 0,
-  );
 </script>
 
 <div class="container">
-  <div class="head">
+  <div class="section-head">
     <h1>Metrics</h1>
-    <span class="pill" class:on={live}>{live ? "● live" : "○ connecting"}</span>
+    <span class="pill" class:ok={live}>{live ? "● live" : "○ connecting"}</span>
   </div>
-  {#if error}<p class="error">{error}</p>{/if}
 
-  {#if node}
-    <div class="grid">
-      <div class="card">
-        <h3>CPU</h3>
-        <p class="stat">{node.cpu_pct.toFixed(0)}<span class="muted">%</span></p>
-        <p class="muted">{node.cpu_count} logical CPUs</p>
-        <p class="muted">load {node.load_average.map((l) => l.toFixed(2)).join(" / ")}</p>
-      </div>
-      <div class="card">
-        <h3>Memory</h3>
-        <p class="stat">{memPct}<span class="muted">%</span></p>
-        <p class="muted">{gib(node.memory_used_bytes)} / {gib(node.memory_total_bytes)} GiB</p>
-      </div>
-      <div class="card">
-        <h3>Disk I/O</h3>
-        <p class="muted">read {gib(node.disk_read_bps)} GiB/s</p>
-        <p class="muted">write {gib(node.disk_write_bps)} GiB/s</p>
-      </div>
-      <div class="card">
-        <h3>Network</h3>
-        <p class="muted">rx {gib(node.net_rx_bps)} GiB/s</p>
-        <p class="muted">tx {gib(node.net_tx_bps)} GiB/s</p>
+  {#if error && !node}<p class="error">{error}</p>{/if}
+
+  <div class="grid-2">
+    <div class="card gauge-card">
+      <h3>Processor</h3>
+      <Gauge value={node?.cpu_pct ?? 0} label="CPU" showLabel={false} sub={node ? `${node.cpu_count} vCPU` : ""} size={150} />
+      <div class="under">
+        <Sparkline data={cpuHist} color="var(--brand-cyan)" />
+        <span class="muted small">load {node ? node.load_average.map((l) => l.toFixed(2)).join(" / ") : "—"}</span>
       </div>
     </div>
-    <p class="muted">Sampled {node.timestamp} · live via SSE</p>
-  {:else if !error}
-    <p class="muted">Loading…</p>
+
+    <div class="card gauge-card">
+      <h3>Memory</h3>
+      <Gauge value={memPct} label="Memory" showLabel={false} size={150} />
+      <div class="under">
+        <Sparkline data={memHist} color="var(--brand-violet)" />
+        <span class="muted small">
+          {node ? `${gib(node.memory_used_bytes)} / ${gib(node.memory_total_bytes)} GiB` : "—"}
+          {#if node && node.swap_total_bytes}· swap {gib(node.swap_used_bytes)} GiB{/if}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card io-card">
+      <h3>Network I/O</h3>
+      <div class="io-vals">
+        <span class="io"><em class="dot rx"></em>↓ {node ? gib(node.net_rx_bps) : "—"} <span class="muted">GiB/s</span></span>
+        <span class="io"><em class="dot tx"></em>↑ {node ? gib(node.net_tx_bps) : "—"} <span class="muted">GiB/s</span></span>
+      </div>
+      <Sparkline data={netHist} color="var(--brand-indigo)" height={56} />
+    </div>
+
+    <div class="card io-card">
+      <h3>Disk I/O</h3>
+      <div class="io-vals">
+        <span class="io"><em class="dot rx"></em>read {node ? gib(node.disk_read_bps) : "—"} <span class="muted">GiB/s</span></span>
+        <span class="io"><em class="dot tx"></em>write {node ? gib(node.disk_write_bps) : "—"} <span class="muted">GiB/s</span></span>
+      </div>
+      <Sparkline data={diskHist} color="var(--ok)" height={56} />
+    </div>
+  </div>
+
+  {#if node}
+    <p class="muted small ts">Sampled {new Date(node.timestamp).toLocaleTimeString()} · streaming live over SSE</p>
   {/if}
 </div>
 
 <style>
-  .head {
+  .grid-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .gauge-card {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
+    padding: 1.4rem;
   }
-  .pill {
-    font-size: 0.75rem;
-    padding: 0.15rem 0.5rem;
-    border-radius: 999px;
-    border: 1px solid var(--border);
-    color: var(--muted);
+  .gauge-card h3 {
+    align-self: flex-start;
   }
-  .pill.on {
-    color: var(--ok);
-    border-color: var(--ok);
+  .under {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    align-items: center;
   }
-  .stat {
-    font-size: 2rem;
+  .small {
+    font-size: 0.82rem;
+  }
+  .io-card {
+    padding: 1.4rem;
+  }
+  .io-vals {
+    display: flex;
+    gap: 1.5rem;
+    margin: 0.3rem 0 0.9rem;
+    font-size: 1.05rem;
     font-weight: 700;
-    margin: 0.2rem 0;
+    font-variant-numeric: tabular-nums;
   }
-  .stat .muted {
-    font-size: 1rem;
+  .io {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .io .muted {
+    font-size: 0.8rem;
     font-weight: 400;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .dot.rx {
+    background: var(--brand-indigo);
+  }
+  .dot.tx {
+    background: var(--brand-cyan);
+  }
+  .ts {
+    margin-top: 0.5rem;
   }
 </style>
