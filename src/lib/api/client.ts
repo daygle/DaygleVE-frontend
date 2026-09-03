@@ -219,11 +219,21 @@ export class DaygleClient {
   /**
    * Absolute ws:// / wss:// URL for a VM console ticket, ready for a noVNC
    * `RFB` client. `websocket_path` from the ticket already carries the
-   * one-time ticket query param.
+   * one-time ticket query param. Resolved against the API base's origin (not
+   * assumed to be the page host) so a cross-origin `baseUrl` still targets the
+   * API host; an already-absolute ws(s) URL is returned unchanged.
    */
   consoleWebsocketUrl(ticketPath: string): string {
-    if (typeof window === "undefined") return ticketPath;
-    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-    return `${proto}//${window.location.host}${ticketPath}`;
+    if (/^wss?:\/\//i.test(ticketPath)) return ticketPath;
+    const pageHref =
+      typeof window !== "undefined" ? window.location.href : undefined;
+    try {
+      const apiOrigin = new URL(this.baseUrl, pageHref).origin;
+      const url = new URL(ticketPath, apiOrigin);
+      url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+      return url.toString();
+    } catch {
+      return ticketPath;
+    }
   }
 }

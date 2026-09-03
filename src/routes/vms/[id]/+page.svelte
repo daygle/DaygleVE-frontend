@@ -35,8 +35,11 @@
       // Wait for the canvas container to be in the DOM, then mount noVNC. RFB
       // is imported dynamically so it never runs during SSR.
       await tick();
-      if (!consoleEl) throw new Error("console container is not ready");
+      // Abort if the user closed the console (or navigated away) while the
+      // ticket request / dynamic import was still in flight.
+      if (!showConsole || !consoleEl) return;
       const { default: RFB } = await import("@novnc/novnc");
+      if (!showConsole || !consoleEl) return;
       const client_ = new RFB(consoleEl, url);
       client_.scaleViewport = true;
       client_.addEventListener("connect", () => (consoleStatus = "connected"));
@@ -62,14 +65,10 @@
   }
 
   // Ensure the VNC connection is torn down if the user navigates away with the
-  // console still open, rather than leaking the websocket + RFB client.
-  onDestroy(() => {
-    try {
-      rfb?.disconnect();
-    } catch {
-      // already gone
-    }
-  });
+  // console still open. Reuse closeConsole so an in-flight open (still awaiting
+  // tick()/import) also aborts via the showConsole guard, not just an existing
+  // connection.
+  onDestroy(closeConsole);
 </script>
 
 <div class="container">

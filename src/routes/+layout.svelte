@@ -1,6 +1,6 @@
 <script lang="ts">
   import "../app.css";
-  import Nav from "$components/Nav.svelte";
+  import Sidebar from "$components/Sidebar.svelte";
   import { auth } from "$lib/stores/auth";
   import { page } from "$app/stores";
   import { goto } from "$app/navigation";
@@ -19,16 +19,15 @@
   });
 </script>
 
-{#if !isLogin}
-  <Nav />
-{/if}
-
-<main>
+{#if isLogin}
   {@render children()}
-</main>
-
-<style>
-  main {
-    min-height: calc(100vh - 3.5rem);
-  }
-</style>
+{:else}
+  <div class="app">
+    <Sidebar />
+    <div class="main-scroll">
+      <main>
+        {@render children()}
+      </main>
+    </div>
+  </div>
+{/if}
