@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from "svelte";
+  import { tick, onDestroy } from "svelte";
   import { page } from "$app/stores";
   import { client } from "$lib/api/session";
   import { ApiRequestError } from "$lib/api";
@@ -35,6 +35,7 @@
       // Wait for the canvas container to be in the DOM, then mount noVNC. RFB
       // is imported dynamically so it never runs during SSR.
       await tick();
+      if (!consoleEl) throw new Error("console container is not ready");
       const { default: RFB } = await import("@novnc/novnc");
       const client_ = new RFB(consoleEl, url);
       client_.scaleViewport = true;
@@ -59,6 +60,16 @@
     showConsole = false;
     consoleStatus = "";
   }
+
+  // Ensure the VNC connection is torn down if the user navigates away with the
+  // console still open, rather than leaking the websocket + RFB client.
+  onDestroy(() => {
+    try {
+      rfb?.disconnect();
+    } catch {
+      // already gone
+    }
+  });
 </script>
 
 <div class="container">
