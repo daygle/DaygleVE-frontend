@@ -9,8 +9,6 @@
     IsoImage,
     VmDisk,
     VmNic,
-    DiskBus,
-    NicModel,
     Firmware,
     Pool,
     Bridge,
@@ -114,14 +112,23 @@
   }
 
   function addDisk() {
-    const pool = pools[0]?.name ?? "tank";
-    eDisks = [...eDisks, { dataset: `${pool}/${eName}-disk${eDisks.length}`, size_gib: 20, bus: "virtio" }];
+    const pool = pools[0]?.name;
+    if (!pool) {
+      editError = "No storage pool is available to back a new disk.";
+      return;
+    }
+    const name = eName.trim() || "vm";
+    eDisks = [...eDisks, { dataset: `${pool}/${name}-disk${eDisks.length}`, size_gib: 20, bus: "virtio" }];
   }
   function removeDisk(i: number) {
     eDisks = eDisks.filter((_, idx) => idx !== i);
   }
   function addNic() {
-    const bridge = bridges[0]?.name ?? "";
+    const bridge = bridges[0]?.name;
+    if (!bridge) {
+      editError = "No bridge is available to attach a new NIC.";
+      return;
+    }
     eNics = [...eNics, { bridge, model: "virtio" }];
   }
   function removeNic(i: number) {
@@ -292,7 +299,7 @@
 </div>
 
 {#if showEdit}
-  <div class="overlay" role="presentation" onclick={(e) => e.target === e.currentTarget && (showEdit = false)}>
+  <div class="overlay" role="presentation" onclick={(e) => e.target === e.currentTarget && !editBusy && (showEdit = false)}>
     <div class="dialog" role="dialog" aria-modal="true" aria-label="Edit VM settings">
       <h2>Edit settings</h2>
       <p class="muted small">Firmware, disk and NIC changes require the VM to be stopped.</p>
