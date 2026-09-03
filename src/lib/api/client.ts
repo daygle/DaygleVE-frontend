@@ -206,8 +206,24 @@ export class DaygleClient {
   nodeMetrics(): Promise<NodeMetrics> {
     return this.request("GET", "/metrics/node");
   }
-  /** URL of the SSE metrics stream; open with `new EventSource(url)`. */
+  /**
+   * URL of the SSE metrics stream; open with `new EventSource(url)`. The
+   * bearer token is carried as a `?token=` query param because `EventSource`
+   * cannot set an `Authorization` header.
+   */
   metricsStreamUrl(): string {
-    return `${this.baseUrl}/metrics/stream`;
+    const q = this.token ? `?token=${encodeURIComponent(this.token)}` : "";
+    return `${this.baseUrl}/metrics/stream${q}`;
+  }
+
+  /**
+   * Absolute ws:// / wss:// URL for a VM console ticket, ready for a noVNC
+   * `RFB` client. `websocket_path` from the ticket already carries the
+   * one-time ticket query param.
+   */
+  consoleWebsocketUrl(ticketPath: string): string {
+    if (typeof window === "undefined") return ticketPath;
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${proto}//${window.location.host}${ticketPath}`;
   }
 }
