@@ -58,6 +58,17 @@
     formError = null;
   }
 
+  // Toggling the form closed clears it, so a typed password (and any prior
+  // error) is never left in memory or re-shown when the form reopens.
+  function toggleAdd() {
+    if (showAdd) {
+      showAdd = false;
+      resetForm();
+    } else {
+      showAdd = true;
+    }
+  }
+
   async function addShare(e: SubmitEvent) {
     e.preventDefault();
     formError = null;
@@ -65,15 +76,20 @@
       formError = "Name, server and export/share are required.";
       return;
     }
+    const isCifs = shareType === "cifs";
+    const uname = username.trim();
+    const dom = domain.trim();
     const req: CreateShareRequest = {
       name: name.trim(),
       share_type: shareType,
       server: server.trim(),
       export_path: exportPath.trim(),
       options: options.trim() || undefined,
-      username: shareType === "cifs" && username ? username : undefined,
-      password: shareType === "cifs" && password ? password : undefined,
-      domain: shareType === "cifs" && domain ? domain : undefined,
+      username: isCifs && uname ? uname : undefined,
+      // Send the password as typed (it may contain meaningful spaces), but treat
+      // a whitespace-only value as "no password".
+      password: isCifs && password.trim() ? password : undefined,
+      domain: isCifs && dom ? dom : undefined,
     };
     adding = true;
     try {
@@ -146,7 +162,7 @@
 
   <div class="section-head">
     <h2>Network shares</h2>
-    <button class="primary" onclick={() => (showAdd = !showAdd)}>
+    <button class="primary" onclick={toggleAdd}>
       {showAdd ? "Cancel" : "Add share"}
     </button>
   </div>
