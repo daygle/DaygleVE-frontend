@@ -16,11 +16,15 @@ import type {
   CreateLxcRequest,
   CreateSnapshotRequest,
   CreateShareRequest,
+  ChangePasswordRequest,
+  CreateUserRequest,
   CreateVlanRequest,
   CreateVmRequest,
   CurrentUser,
   Dataset,
   NetworkShare,
+  UpdateUserRequest,
+  User,
   GpuDevice,
   HealthStatus,
   IsoImage,
@@ -118,6 +122,23 @@ export class DaygleClient {
   }
   me(): Promise<CurrentUser> {
     return this.request("GET", "/auth/me");
+  }
+  changePassword(req: ChangePasswordRequest): Promise<void> {
+    return this.request("POST", "/auth/change-password", req);
+  }
+
+  // --- users ----------------------------------------------------------------
+  listUsers(): Promise<User[]> {
+    return this.request("GET", "/users");
+  }
+  createUser(req: CreateUserRequest): Promise<User> {
+    return this.request("POST", "/users", req);
+  }
+  updateUser(id: string, req: UpdateUserRequest): Promise<User> {
+    return this.request("PATCH", `/users/${id}`, req);
+  }
+  deleteUser(id: string): Promise<void> {
+    return this.request("DELETE", `/users/${id}`);
   }
 
   // --- vms ------------------------------------------------------------------
