@@ -23,6 +23,7 @@
     e.preventDefault();
     error = null;
     done = false;
+    if (!currentPassword) return (error = "Enter your current password.");
     if (newPassword.length < 8) return (error = "New password must be at least 8 characters.");
     if (newPassword !== confirmPassword) return (error = "New passwords do not match.");
     busy = true;
@@ -65,15 +66,15 @@
     <form onsubmit={submit}>
       <label class="field">
         <span>Current password</span>
-        <input type="password" bind:value={currentPassword} autocomplete="current-password" />
+        <input type="password" bind:value={currentPassword} autocomplete="current-password" required />
       </label>
       <label class="field">
         <span>New password</span>
-        <input type="password" bind:value={newPassword} autocomplete="new-password" />
+        <input type="password" bind:value={newPassword} autocomplete="new-password" required minlength="8" />
       </label>
       <label class="field">
         <span>Confirm new password</span>
-        <input type="password" bind:value={confirmPassword} autocomplete="new-password" />
+        <input type="password" bind:value={confirmPassword} autocomplete="new-password" required />
       </label>
       {#if error}<p class="error">{error}</p>{/if}
       {#if done}<p class="ok">Password updated.</p>{/if}

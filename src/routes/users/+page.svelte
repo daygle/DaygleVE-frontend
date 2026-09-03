@@ -8,6 +8,7 @@
   let users = $state<User[]>([]);
   let error = $state<string | null>(null);
   let loading = $state(true);
+  let forbidden = $state(false);
 
   // create modal
   let showCreate = $state(false);
@@ -27,8 +28,14 @@
     try {
       users = await client().listUsers();
       error = null;
+      forbidden = false;
     } catch (e) {
-      error = e instanceof ApiRequestError ? e.body.message : String(e);
+      if (e instanceof ApiRequestError && e.status === 403) {
+        forbidden = true;
+        error = null;
+      } else {
+        error = e instanceof ApiRequestError ? e.body.message : String(e);
+      }
     } finally {
       loading = false;
     }
@@ -111,12 +118,16 @@
 <div class="container">
   <div class="head">
     <h1>Users</h1>
-    <button class="primary" onclick={openCreate}>Add user</button>
+    {#if !forbidden}
+      <button class="primary" onclick={openCreate}>Add user</button>
+    {/if}
   </div>
   {#if error}<p class="error">{error}</p>{/if}
 
   <div class="card">
-    {#if loading}
+    {#if forbidden}
+      <p class="muted">You don't have permission to manage users. This area requires an administrator account.</p>
+    {:else if loading}
       <p class="muted">Loading…</p>
     {:else if users.length === 0}
       <p class="muted">No users.</p>
