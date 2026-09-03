@@ -78,6 +78,18 @@
     showCreate = false;
   }
 
+  // Close on Escape from anywhere while the modal is open (works regardless of
+  // which element inside the dialog has focus).
+  function onWindowKeydown(e: KeyboardEvent) {
+    if (e.key === "Escape" && showCreate) closeCreate();
+  }
+
+  // Dismiss only when the backdrop itself is clicked, not the dialog contents —
+  // so the dialog needs no click/key handler of its own to stop propagation.
+  function onOverlayClick(e: MouseEvent) {
+    if (e.target === e.currentTarget) closeCreate();
+  }
+
   async function submitCreate(e: SubmitEvent) {
     e.preventDefault();
     formError = null;
@@ -190,24 +202,13 @@
   </div>
 </div>
 
+<svelte:window onkeydown={onWindowKeydown} />
+
 {#if showCreate}
-  <div
-    class="overlay"
-    role="button"
-    tabindex="-1"
-    onclick={closeCreate}
-    onkeydown={(e) => e.key === "Escape" && closeCreate()}
-  >
-    <!-- Stop propagation so clicks inside the dialog don't dismiss it. -->
-    <div
-      class="dialog"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Create virtual machine"
-      tabindex="-1"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => e.stopPropagation()}
-    >
+  <!-- Backdrop: a click on it (but not on the dialog) dismisses the modal;
+       Escape is handled on the window above so the dialog needs no key handler. -->
+  <div class="overlay" role="presentation" onclick={onOverlayClick}>
+    <div class="dialog" role="dialog" aria-modal="true" aria-label="Create virtual machine">
       <h2>New Virtual Machine</h2>
       <form onsubmit={submitCreate}>
         <div class="grid">
