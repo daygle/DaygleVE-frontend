@@ -105,6 +105,10 @@
     eDisks = vm.disks.map((d) => ({ ...d }));
     eNics = vm.nics.map((n) => ({ ...n }));
     showEdit = true;
+    // Clear first so a failed fetch degrades to empty rather than keeping stale
+    // pools/bridges from a previous open (which addDisk/addNic would misuse).
+    pools = [];
+    bridges = [];
     const c = client();
     const [p, b] = await Promise.allSettled([c.listPools(), c.listBridges()]);
     if (p.status === "fulfilled") pools = p.value;
@@ -118,7 +122,12 @@
       return;
     }
     const name = eName.trim() || "vm";
-    eDisks = [...eDisks, { dataset: `${pool}/${name}-disk${eDisks.length}`, size_gib: 20, bus: "virtio" }];
+    // Pick the lowest index whose dataset name is still free so that deleting an
+    // earlier disk and adding another doesn't collide with a name already in use.
+    const taken = new Set(eDisks.map((d) => d.dataset));
+    let n = 0;
+    while (taken.has(`${pool}/${name}-disk${n}`)) n++;
+    eDisks = [...eDisks, { dataset: `${pool}/${name}-disk${n}`, size_gib: 20, bus: "virtio" }];
   }
   function removeDisk(i: number) {
     eDisks = eDisks.filter((_, idx) => idx !== i);
