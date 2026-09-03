@@ -2,6 +2,7 @@
   import { page } from "$app/stores";
   import { auth } from "$lib/stores/auth";
   import { goto } from "$app/navigation";
+  import Logo from "$components/Logo.svelte";
 
   const links = [
     { href: "/", label: "Dashboard" },
@@ -19,7 +20,9 @@
 </script>
 
 <nav>
-  <div class="brand">DaygleVE</div>
+  <a class="brand" href="/" aria-label="DaygleVE home">
+    <Logo size={26} wordmark />
+  </a>
   <ul>
     {#each links as link (link.href)}
       <li>
@@ -51,9 +54,9 @@
     border-bottom: 1px solid var(--border);
   }
   .brand {
-    font-weight: 800;
-    letter-spacing: 0.02em;
-    color: var(--accent);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
   }
   ul {
     display: flex;
@@ -62,7 +65,7 @@
     margin: 0;
     padding: 0;
   }
-  a {
+  ul a {
     display: block;
     padding: 0.35rem 0.7rem;
     border-radius: 6px;
@@ -70,11 +73,11 @@
     text-decoration: none;
     font-size: 0.9rem;
   }
-  a:hover {
+  ul a:hover {
     color: var(--fg);
     background: var(--panel-2);
   }
-  a.active {
+  ul a.active {
     color: var(--fg);
     background: var(--panel-2);
   }

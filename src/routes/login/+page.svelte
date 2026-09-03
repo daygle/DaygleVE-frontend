@@ -2,6 +2,7 @@
   import { DaygleClient, ApiRequestError } from "$lib/api";
   import { auth } from "$lib/stores/auth";
   import { goto } from "$app/navigation";
+  import Logo from "$components/Logo.svelte";
 
   let username = $state("admin");
   let password = $state("");
@@ -28,7 +29,10 @@
 
 <div class="wrap">
   <form class="card" onsubmit={submit}>
-    <h1>DaygleVE</h1>
+    <h1 class="visually-hidden">DaygleVE</h1>
+    <div class="logo" aria-hidden="true">
+      <Logo size={44} wordmark />
+    </div>
     <p class="muted">Sign in to the control panel</p>
 
     <label>
@@ -65,9 +69,10 @@
     flex-direction: column;
     gap: 0.75rem;
   }
-  h1 {
-    margin: 0;
-    color: var(--accent);
+  .logo {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 0.25rem;
   }
   label {
     display: flex;
