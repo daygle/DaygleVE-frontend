@@ -25,6 +25,7 @@ import type {
   CurrentUser,
   Dataset,
   NetworkShare,
+  OperationRecord,
   UpdateUserRequest,
   User,
   GpuDevice,
@@ -124,6 +125,11 @@ export class DaygleClient {
   // --- system ---------------------------------------------------------------
   health(): Promise<HealthStatus> {
     return this.request("GET", "/health");
+  }
+
+  // --- operations -----------------------------------------------------------
+  listOperations(): Promise<OperationRecord[]> {
+    return this.request("GET", "/operations");
   }
 
   // --- auth -----------------------------------------------------------------
