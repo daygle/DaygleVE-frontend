@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick, onDestroy } from "svelte";
   import { page } from "$app/stores";
+  import { goto } from "$app/navigation";
   import { client } from "$lib/api/session";
   import { ApiRequestError } from "$lib/api";
   import StateBadge from "$components/StateBadge.svelte";
@@ -36,6 +37,14 @@
   let isos = $state<IsoImage[]>([]);
   let selectedIso = $state("");
   let mediaBusy = $state(false);
+
+  // --- clone modal ---
+  let showClone = $state(false);
+  let cloneName = $state("");
+  let cloneFull = $state(false);
+  let cloneDesc = $state("");
+  let cloneBusy = $state(false);
+  let cloneError = $state<string | null>(null);
 
   // Snapshot state.
   let snapshots = $state<VmSnapshot[]>([]);
@@ -275,10 +284,44 @@
     }
   }
 
-  // Close the edit modal on Escape from anywhere (but never mid-save), matching
-  // the create-VM modal's keyboard behaviour.
+  // Close a modal on Escape from anywhere (but never mid-save).
   function onWindowKeydown(e: KeyboardEvent) {
-    if (e.key === "Escape" && showEdit && !editBusy) showEdit = false;
+    if (e.key !== "Escape") return;
+    if (showEdit && !editBusy) showEdit = false;
+    if (showClone && !cloneBusy) showClone = false;
+  }
+
+  function openClone() {
+    if (!vm) return;
+    cloneError = null;
+    cloneName = `${vm.name}-clone`;
+    cloneFull = false;
+    cloneDesc = "";
+    showClone = true;
+  }
+
+  async function submitClone(e: SubmitEvent) {
+    e.preventDefault();
+    cloneError = null;
+    if (!cloneName.trim()) {
+      cloneError = "Name is required.";
+      return;
+    }
+    cloneBusy = true;
+    try {
+      const created = await client().cloneVm(id, {
+        name: cloneName.trim(),
+        full: cloneFull,
+        description: cloneDesc.trim() || undefined,
+      });
+      showClone = false;
+      // Jump to the freshly-created clone's detail page.
+      await goto(`/vms/${created.id}`);
+    } catch (err) {
+      cloneError = err instanceof ApiRequestError ? err.body.message : String(err);
+    } finally {
+      cloneBusy = false;
+    }
   }
 
   async function openConsole() {
@@ -336,6 +379,7 @@
       <h1>{vm.name}</h1>
       <StateBadge state={vm.state} />
       <button class="edit-btn" onclick={openEdit}>Edit settings</button>
+      <button class="edit-btn" onclick={openClone}>Clone</button>
     </div>
 
     <div class="grid">
@@ -539,6 +583,43 @@
   </div>
 {/if}
 
+{#if showClone}
+  <div
+    class="overlay"
+    role="presentation"
+    onclick={(e) => e.target === e.currentTarget && !cloneBusy && (showClone = false)}
+  >
+    <div class="dialog" role="dialog" aria-modal="true" aria-label="Clone VM">
+      <h2>Clone VM</h2>
+      <p class="muted small">
+        Creates a new stopped VM whose disks are ZFS clones of this one, with fresh network MAC
+        addresses. GPU passthrough and install media are not carried over.
+      </p>
+      <form onsubmit={submitClone}>
+        <label class="field">
+          <span>New VM name</span>
+          <input bind:value={cloneName} autocomplete="off" aria-label="New VM name" />
+        </label>
+        <label class="check">
+          <input type="checkbox" bind:checked={cloneFull} />
+          <span>Full clone (independent copy — promotes the cloned disks)</span>
+        </label>
+        <label class="field">
+          <span>Description (optional)</span>
+          <input bind:value={cloneDesc} autocomplete="off" aria-label="Description (optional)" />
+        </label>
+        {#if cloneError}<p class="error">{cloneError}</p>{/if}
+        <div class="dialog-actions">
+          <button type="button" onclick={() => (showClone = false)} disabled={cloneBusy}>Cancel</button>
+          <button type="submit" class="primary" disabled={cloneBusy}>
+            {cloneBusy ? "Cloning…" : "Clone"}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+{/if}
+
 <style>
   .head {
     display: flex;
@@ -546,7 +627,6 @@
     gap: 0.75rem;
   }
   .edit-btn {
-    margin-left: auto;
     cursor: pointer;
     background: transparent;
     border: 1px solid var(--border);
@@ -554,6 +634,10 @@
     padding: 0.35rem 0.7rem;
     border-radius: 8px;
     font-size: 0.85rem;
+  }
+  /* Push the button group to the right; only the first needs the auto margin. */
+  .head .edit-btn:first-of-type {
+    margin-left: auto;
   }
   .edit-btn:hover {
     color: var(--fg);
@@ -599,6 +683,17 @@
   }
   .field span {
     color: var(--muted);
+  }
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.8rem 0;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  .check input {
+    width: auto;
   }
   .sub-head {
     display: flex;

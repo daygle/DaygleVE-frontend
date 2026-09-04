@@ -17,6 +17,7 @@ import type {
   CreateSnapshotRequest,
   CreateShareRequest,
   ChangePasswordRequest,
+  CloneVmRequest,
   CreateUserRequest,
   CreateVlanRequest,
   CreateVmRequest,
@@ -165,6 +166,9 @@ export class DaygleClient {
   }
   powerVm(id: string, req: VmPowerRequest): Promise<Vm> {
     return this.request("POST", `/vms/${id}/power`, req);
+  }
+  cloneVm(id: string, req: CloneVmRequest): Promise<Vm> {
+    return this.request("POST", `/vms/${id}/clone`, req);
   }
   vmConsole(id: string): Promise<ConsoleTicket> {
     return this.request("POST", `/vms/${id}/console`);
