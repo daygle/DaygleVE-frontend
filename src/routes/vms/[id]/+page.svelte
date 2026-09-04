@@ -13,6 +13,7 @@
     Pool,
     Bridge,
     UpdateVmRequest,
+    VmSnapshot,
   } from "@daygleve/schema";
 
   let vm = $state<Vm | null>(null);
@@ -35,6 +36,17 @@
   let isos = $state<IsoImage[]>([]);
   let selectedIso = $state("");
   let mediaBusy = $state(false);
+
+  // Snapshot state.
+  let snapshots = $state<VmSnapshot[]>([]);
+  // Monotonic token so only the most recent loadSnapshots() applies its result
+  // (guards against concurrent loads — initial effect plus post-mutation reloads
+  // — resolving out of order). Not reactive; used only inside loadSnapshots.
+  let snapLoadSeq = 0;
+  let snapName = $state("");
+  let snapDesc = $state("");
+  let snapBusy = $state(false);
+  let snapError = $state<string | null>(null);
 
   // noVNC console state.
   let consoleEl = $state<HTMLDivElement>();
@@ -60,7 +72,84 @@
       .listIsos()
       .then((list) => (isos = list))
       .catch(() => {});
+    loadSnapshots();
   });
+
+  async function loadSnapshots() {
+    // Capture the id and a sequence token this request is for. Navigating to
+    // another VM changes `id`, and any newer load bumps the token, so a response
+    // that resolves out of order (stale VM, or stale same-VM load) is ignored.
+    const reqId = id;
+    const seq = ++snapLoadSeq;
+    const stale = () => seq !== snapLoadSeq || reqId !== id;
+    try {
+      const list = await client().listVmSnapshots(reqId);
+      if (stale()) return;
+      snapshots = list;
+      // A clean load clears any stale load error (an empty list is a valid
+      // result: a fresh VM, or a host without ZFS, simply has no snapshots).
+      if (snapError) snapError = null;
+    } catch (e) {
+      if (stale()) return;
+      // The backend returns an empty list for the "nothing to show" cases, so a
+      // thrown error here is a real failure (auth/network/server) worth surfacing
+      // rather than silently rendering an empty table.
+      snapshots = [];
+      snapError = e instanceof ApiRequestError ? e.body.message : String(e);
+    }
+  }
+
+  async function createSnapshot(e: SubmitEvent) {
+    e.preventDefault();
+    snapError = null;
+    if (!snapName.trim()) {
+      snapError = "Snapshot name is required.";
+      return;
+    }
+    snapBusy = true;
+    try {
+      await client().createVmSnapshot(id, {
+        name: snapName.trim(),
+        description: snapDesc.trim() || undefined,
+      });
+      snapName = "";
+      snapDesc = "";
+      await loadSnapshots();
+    } catch (err) {
+      snapError = err instanceof ApiRequestError ? err.body.message : String(err);
+    } finally {
+      snapBusy = false;
+    }
+  }
+
+  async function rollbackSnapshot(name: string) {
+    if (!confirm(`Roll ${vm?.name ?? "this VM"} back to snapshot "${name}"? Newer snapshots are discarded, and the VM must be stopped.`)) return;
+    snapError = null;
+    snapBusy = true;
+    try {
+      await client().rollbackVmSnapshot(id, name);
+      // Rollback with `-r` discards newer snapshots, so refresh the list too.
+      await Promise.all([reload(), loadSnapshots()]);
+    } catch (err) {
+      snapError = err instanceof ApiRequestError ? err.body.message : String(err);
+    } finally {
+      snapBusy = false;
+    }
+  }
+
+  async function deleteSnapshot(name: string) {
+    if (!confirm(`Delete snapshot "${name}"? This cannot be undone.`)) return;
+    snapError = null;
+    snapBusy = true;
+    try {
+      await client().deleteVmSnapshot(id, name);
+      await loadSnapshots();
+    } catch (err) {
+      snapError = err instanceof ApiRequestError ? err.body.message : String(err);
+    } finally {
+      snapBusy = false;
+    }
+  }
 
   async function attachIso() {
     if (!selectedIso) return;
@@ -92,6 +181,23 @@
 
   function isoName(path: string): string {
     return isos.find((i) => i.path === path)?.name ?? path;
+  }
+
+  function fmtBytes(n: number): string {
+    if (n < 1024) return `${n} B`;
+    const units = ["KiB", "MiB", "GiB", "TiB"];
+    let v = n / 1024;
+    let i = 0;
+    while (v >= 1024 && i < units.length - 1) {
+      v /= 1024;
+      i++;
+    }
+    return `${v.toFixed(1)} ${units[i]}`;
+  }
+
+  function fmtDate(ts: string): string {
+    const d = new Date(ts);
+    return isNaN(d.getTime()) ? ts : d.toLocaleString();
   }
 
   async function openEdit() {
@@ -307,6 +413,66 @@
           <p class="muted">Opens a live noVNC session to the VM's display.</p>
         {/if}
       </div>
+    </div>
+
+    <div class="card snapshots-card">
+      <h3>Snapshots</h3>
+      {#if snapError}<p class="error">{snapError}</p>{/if}
+      <form class="snap-form" onsubmit={createSnapshot}>
+        <input
+          bind:value={snapName}
+          placeholder="Snapshot name"
+          aria-label="Snapshot name"
+          autocomplete="off"
+        />
+        <input
+          class="grow"
+          bind:value={snapDesc}
+          placeholder="Description (optional)"
+          aria-label="Snapshot description (optional)"
+          autocomplete="off"
+        />
+        <button type="submit" class="primary" disabled={snapBusy}>
+          {snapBusy ? "Working…" : "Take snapshot"}
+        </button>
+      </form>
+      {#if snapshots.length}
+        <table class="snap-table">
+          <thead>
+            <tr><th>Name</th><th>Size</th><th>Created</th><th></th></tr>
+          </thead>
+          <tbody>
+            {#each snapshots as snap (snap.name)}
+              <tr>
+                <td>
+                  <span class="snap-name">{snap.name}</span>
+                  {#if snap.description}<span class="muted snap-desc">{snap.description}</span>{/if}
+                </td>
+                <td>{fmtBytes(snap.used_bytes)}</td>
+                <td class="muted">{fmtDate(snap.created_at)}</td>
+                <td class="snap-actions">
+                  <button type="button" onclick={() => rollbackSnapshot(snap.name)} disabled={snapBusy}>
+                    Rollback
+                  </button>
+                  <button
+                    type="button"
+                    class="del"
+                    onclick={() => deleteSnapshot(snap.name)}
+                    disabled={snapBusy}
+                    aria-label="Delete snapshot">×</button
+                  >
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      {:else if !snapError}
+        <p class="muted">No snapshots yet.</p>
+      {/if}
+      <p class="muted small">
+        A snapshot captures all of the VM's disks at once. Rollback discards newer snapshots and
+        requires the VM to be stopped.
+      </p>
     </div>
   {:else if !error}
     <p class="muted">Loading…</p>
@@ -547,5 +713,51 @@
   .small {
     font-size: 0.8rem;
     margin: 0.6rem 0 0;
+  }
+  .snapshots-card {
+    margin-top: 1rem;
+  }
+  .snap-form {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.8rem;
+    flex-wrap: wrap;
+  }
+  .snap-form .grow {
+    flex: 1;
+    min-width: 12rem;
+  }
+  .snap-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+  .snap-table th {
+    text-align: left;
+    font-weight: 500;
+    color: var(--muted);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.3rem 0.6rem 0.3rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .snap-table td {
+    padding: 0.4rem 0.6rem 0.4rem 0;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .snap-name {
+    font-family: var(--mono, monospace);
+  }
+  .snap-desc {
+    display: block;
+    font-size: 0.8rem;
+  }
+  .snap-actions {
+    display: flex;
+    gap: 0.4rem;
+    justify-content: flex-end;
   }
 </style>
