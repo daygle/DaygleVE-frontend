@@ -177,7 +177,7 @@ export class DaygleClient {
   getVm(id: string): Promise<Vm> {
     return this.request("GET", `/vms/${id}`);
   }
-  createVm(req: CreateVmRequest): Promise<Vm> {
+  createVm(req: CreateVmRequest): Promise<OperationRecord> {
     return this.request("POST", "/vms", req);
   }
   updateVm(id: string, req: UpdateVmRequest): Promise<Vm> {
@@ -189,7 +189,7 @@ export class DaygleClient {
   powerVm(id: string, req: VmPowerRequest): Promise<Vm> {
     return this.request("POST", `/vms/${id}/power`, req);
   }
-  cloneVm(id: string, req: CloneVmRequest): Promise<Vm> {
+  cloneVm(id: string, req: CloneVmRequest): Promise<OperationRecord> {
     return this.request("POST", `/vms/${id}/clone`, req);
   }
   vmConsole(id: string): Promise<ConsoleTicket> {
@@ -215,7 +215,7 @@ export class DaygleClient {
   getContainer(id: string): Promise<Lxc> {
     return this.request("GET", `/containers/${id}`);
   }
-  createContainer(req: CreateLxcRequest): Promise<Lxc> {
+  createContainer(req: CreateLxcRequest): Promise<OperationRecord> {
     return this.request("POST", "/containers", req);
   }
   updateContainer(id: string, req: UpdateLxcRequest): Promise<Lxc> {
@@ -235,23 +235,23 @@ export class DaygleClient {
   listDatasets(): Promise<Dataset[]> {
     return this.request("GET", "/storage/datasets");
   }
-  createDataset(req: CreateDatasetRequest): Promise<Dataset> {
+  createDataset(req: CreateDatasetRequest): Promise<OperationRecord> {
     return this.request("POST", "/storage/datasets", req);
   }
   listSnapshots(datasetId: string): Promise<Snapshot[]> {
     return this.request("GET", `/storage/datasets/${datasetId}/snapshots`);
   }
-  createSnapshot(datasetId: string, req: CreateSnapshotRequest): Promise<Snapshot> {
+  createSnapshot(datasetId: string, req: CreateSnapshotRequest): Promise<OperationRecord> {
     return this.request("POST", `/storage/datasets/${datasetId}/snapshots`, req);
   }
-  cloneSnapshot(snapshotId: string, req: CloneSnapshotRequest): Promise<Dataset> {
+  cloneSnapshot(snapshotId: string, req: CloneSnapshotRequest): Promise<OperationRecord> {
     return this.request("POST", `/storage/snapshots/${snapshotId}/clone`, req);
   }
   /** Network shares (NFS/CIFS) used as ISO content sources. */
   listShares(): Promise<NetworkShare[]> {
     return this.request("GET", "/storage/shares");
   }
-  createShare(req: CreateShareRequest): Promise<NetworkShare> {
+  createShare(req: CreateShareRequest): Promise<OperationRecord> {
     return this.request("POST", "/storage/shares", req);
   }
   deleteShare(id: string): Promise<void> {
@@ -262,13 +262,13 @@ export class DaygleClient {
   listBridges(): Promise<Bridge[]> {
     return this.request("GET", "/network/bridges");
   }
-  createBridge(req: CreateBridgeRequest): Promise<Bridge> {
+  createBridge(req: CreateBridgeRequest): Promise<OperationRecord> {
     return this.request("POST", "/network/bridges", req);
   }
   listVlans(): Promise<Vlan[]> {
     return this.request("GET", "/network/vlans");
   }
-  createVlan(req: CreateVlanRequest): Promise<Vlan> {
+  createVlan(req: CreateVlanRequest): Promise<OperationRecord> {
     return this.request("POST", "/network/vlans", req);
   }
 
@@ -276,7 +276,7 @@ export class DaygleClient {
   listGpus(): Promise<GpuDevice[]> {
     return this.request("GET", "/gpus");
   }
-  bindGpu(pciAddress: string, req: BindGpuRequest): Promise<GpuDevice> {
+  bindGpu(pciAddress: string, req: BindGpuRequest): Promise<OperationRecord> {
     return this.request("POST", `/gpus/${encodeURIComponent(pciAddress)}/bind`, req);
   }
 

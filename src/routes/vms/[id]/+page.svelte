@@ -15,6 +15,7 @@
     Bridge,
     UpdateVmRequest,
     VmSnapshot,
+    OperationRecord,
   } from "@daygleve/schema";
 
   let vm = $state<Vm | null>(null);
@@ -313,15 +314,27 @@
     }
     cloneBusy = true;
     try {
-      const created = await client().cloneVm(id, {
+      const op = await client().cloneVm(id, {
         name: cloneName.trim(),
         full: cloneFull,
         description: cloneDesc.trim() || undefined,
       });
-      // Jump to the freshly-created clone's detail page. Only close the modal
-      // once navigation succeeds, so a failed goto still shows the error below.
-      await goto(`/vms/${created.id}`);
-      showClone = false;
+      // Poll the clone operation until it finishes.
+      const c = client();
+      let result: OperationRecord = op;
+      for (let i = 0; i < 120; i++) {
+        result = await c.getOperation(op.id);
+        if (result.status === "succeeded" || result.status === "failed") break;
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+      if (result.status === "succeeded" && result.result_id) {
+        await goto(`/vms/${result.result_id}`);
+        showClone = false;
+      } else if (result.status === "failed") {
+        cloneError = result.error ?? "Clone failed";
+      } else {
+        cloneError = "Clone timed out";
+      }
     } catch (err) {
       cloneError = err instanceof ApiRequestError ? err.body.message : String(err);
     } finally {

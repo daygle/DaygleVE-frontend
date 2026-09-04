@@ -12,6 +12,7 @@
     NicModel,
     Firmware,
     CreateVmRequest,
+    OperationRecord,
   } from "@daygleve/schema";
 
   let vms = $state<VmSummary[]>([]);
@@ -122,15 +123,26 @@
 
     creating = true;
     try {
-      await client().createVm(req);
+      const op = await client().createVm(req);
       showCreate = false;
       resetForm();
+      await pollOperation(op);
       await load();
     } catch (err) {
       formError = err instanceof ApiRequestError ? err.body.message : String(err);
     } finally {
       creating = false;
     }
+  }
+
+  async function pollOperation(op: OperationRecord, maxAttempts = 60) {
+    const c = client();
+    for (let i = 0; i < maxAttempts; i++) {
+      const record = await c.getOperation(op.id);
+      if (record.status === "succeeded" || record.status === "failed") return record;
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    return op;
   }
 
   function resetForm() {

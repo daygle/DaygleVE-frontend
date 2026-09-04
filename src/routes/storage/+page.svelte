@@ -1,7 +1,7 @@
 <script lang="ts">
   import { client } from "$lib/api/session";
   import { ApiRequestError } from "$lib/api";
-  import type { Pool, Dataset, NetworkShare, ShareType, CreateShareRequest } from "@daygleve/schema";
+  import type { Pool, Dataset, NetworkShare, ShareType, CreateShareRequest, OperationRecord } from "@daygleve/schema";
 
   let pools = $state<Pool[]>([]);
   let datasets = $state<Dataset[]>([]);
@@ -93,15 +93,26 @@
     };
     adding = true;
     try {
-      await client().createShare(req);
+      const op = await client().createShare(req);
       showAdd = false;
       resetForm();
+      await pollOperation(op);
       await loadShares();
     } catch (err) {
       formError = err instanceof ApiRequestError ? err.body.message : String(err);
     } finally {
       adding = false;
     }
+  }
+
+  async function pollOperation(op: OperationRecord, maxAttempts = 30) {
+    const c = client();
+    for (let i = 0; i < maxAttempts; i++) {
+      const record = await c.getOperation(op.id);
+      if (record.status === "succeeded" || record.status === "failed") return record;
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    return op;
   }
 
   async function removeShare(share: NetworkShare) {
