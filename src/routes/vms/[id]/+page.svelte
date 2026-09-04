@@ -39,6 +39,10 @@
 
   // Snapshot state.
   let snapshots = $state<VmSnapshot[]>([]);
+  // Monotonic token so only the most recent loadSnapshots() applies its result
+  // (guards against concurrent loads — initial effect plus post-mutation reloads
+  // — resolving out of order). Not reactive; used only inside loadSnapshots.
+  let snapLoadSeq = 0;
   let snapName = $state("");
   let snapDesc = $state("");
   let snapBusy = $state(false);
@@ -72,19 +76,21 @@
   });
 
   async function loadSnapshots() {
-    // Capture the id this request is for; navigating to another VM changes `id`
-    // and starts a new load, so a late response from the old one must not clobber
-    // the new VM's state.
+    // Capture the id and a sequence token this request is for. Navigating to
+    // another VM changes `id`, and any newer load bumps the token, so a response
+    // that resolves out of order (stale VM, or stale same-VM load) is ignored.
     const reqId = id;
+    const seq = ++snapLoadSeq;
+    const stale = () => seq !== snapLoadSeq || reqId !== id;
     try {
       const list = await client().listVmSnapshots(reqId);
-      if (reqId !== id) return;
+      if (stale()) return;
       snapshots = list;
       // A clean load clears any stale load error (an empty list is a valid
       // result: a fresh VM, or a host without ZFS, simply has no snapshots).
       if (snapError) snapError = null;
     } catch (e) {
-      if (reqId !== id) return;
+      if (stale()) return;
       // The backend returns an empty list for the "nothing to show" cases, so a
       // thrown error here is a real failure (auth/network/server) worth surfacing
       // rather than silently rendering an empty table.
