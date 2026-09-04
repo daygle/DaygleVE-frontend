@@ -17,7 +17,10 @@
       const client = new DaygleClient();
       const res = await client.login({ username, password });
       auth.signIn(res.token, res.user);
-      await goto("/");
+      // Fetch the authoritative current-user record before choosing the landing
+      // page; the login response intentionally contains no session-policy flags.
+      const current = await new DaygleClient({ token: res.token }).me();
+      await goto(current.must_change_password ? "/account" : "/");
     } catch (err) {
       error =
         err instanceof ApiRequestError ? err.body.message : "Sign-in failed";

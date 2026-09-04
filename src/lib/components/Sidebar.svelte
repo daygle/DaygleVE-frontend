@@ -27,9 +27,15 @@
     return href === "/" ? path === "/" : path === href || path.startsWith(href + "/");
   }
 
-  function signOut() {
-    auth.signOut();
-    goto("/login");
+  async function signOut() {
+    try {
+      await (await import("$lib/api/session")).client().logout();
+    } catch {
+      // Clear local credentials even when the node is unavailable.
+    } finally {
+      auth.signOut();
+      await goto("/login");
+    }
   }
 </script>
 

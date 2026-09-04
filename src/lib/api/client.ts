@@ -69,6 +69,8 @@ export interface ClientOptions {
   baseUrl?: string;
   /** Injectable fetch (SvelteKit passes its `fetch` during load). */
   fetch?: typeof globalThis.fetch;
+  /** Called when the backend rejects the session, so the UI can return to login. */
+  onUnauthorized?: () => void;
 }
 
 /**
@@ -79,11 +81,13 @@ export class DaygleClient {
   private readonly token?: string;
   private readonly baseUrl: string;
   private readonly doFetch: typeof globalThis.fetch;
+  private readonly onUnauthorized?: () => void;
 
   constructor(opts: ClientOptions = {}) {
     this.token = opts.token;
     this.baseUrl = opts.baseUrl ?? API_BASE;
     this.doFetch = opts.fetch ?? globalThis.fetch;
+    this.onUnauthorized = opts.onUnauthorized;
   }
 
   private async request<T>(
@@ -108,6 +112,9 @@ export class DaygleClient {
         code: "internal",
         message: res.statusText,
       }))) as ApiError;
+      if (res.status === 401) this.onUnauthorized?.();
+      const requestId = res.headers.get("x-request-id");
+      if (requestId && !err.request_id) err.request_id = requestId;
       throw new ApiRequestError(res.status, err);
     }
 
@@ -125,6 +132,9 @@ export class DaygleClient {
   }
   me(): Promise<CurrentUser> {
     return this.request("GET", "/auth/me");
+  }
+  logout(): Promise<void> {
+    return this.request("POST", "/auth/logout");
   }
   changePassword(req: ChangePasswordRequest): Promise<void> {
     return this.request("POST", "/auth/change-password", req);

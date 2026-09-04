@@ -20,9 +20,13 @@ jobs:
       - name: Build static site
         run: npm run build
       - name: Package site
-        run: tar -czf "daygleve-frontend-${{ github.ref_name }}.tar.gz" -C build .
+        run: |
+          tar -czf "daygleve-frontend-${{ github.ref_name }}.tar.gz" -C build .
+          sha256sum daygleve-frontend-*.tar.gz > daygleve-frontend-${{ github.ref_name }}.sha256
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          files: daygleve-frontend-*.tar.gz
+          files: |
+            daygleve-frontend-*.tar.gz
+            daygleve-frontend-*.sha256
           generate_release_notes: true

@@ -4,5 +4,8 @@ import { auth } from "$lib/stores/auth";
 import { DaygleClient } from "./client";
 
 export function client(): DaygleClient {
-  return new DaygleClient({ token: get(auth).token ?? undefined });
+  return new DaygleClient({
+    token: get(auth).token ?? undefined,
+    onUnauthorized: () => auth.signOut(),
+  });
 }
