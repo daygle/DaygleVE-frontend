@@ -20,6 +20,7 @@ import type {
   CreateUserRequest,
   CreateVlanRequest,
   CreateVmRequest,
+  CreateVmSnapshotRequest,
   CurrentUser,
   Dataset,
   NetworkShare,
@@ -41,6 +42,7 @@ import type {
   Vlan,
   Vm,
   VmPowerRequest,
+  VmSnapshot,
   VmSummary,
 } from "@daygleve/schema";
 
@@ -166,6 +168,18 @@ export class DaygleClient {
   }
   vmConsole(id: string): Promise<ConsoleTicket> {
     return this.request("POST", `/vms/${id}/console`);
+  }
+  listVmSnapshots(id: string): Promise<VmSnapshot[]> {
+    return this.request("GET", `/vms/${id}/snapshots`);
+  }
+  createVmSnapshot(id: string, req: CreateVmSnapshotRequest): Promise<VmSnapshot> {
+    return this.request("POST", `/vms/${id}/snapshots`, req);
+  }
+  rollbackVmSnapshot(id: string, name: string): Promise<void> {
+    return this.request("POST", `/vms/${id}/snapshots/${encodeURIComponent(name)}/rollback`);
+  }
+  deleteVmSnapshot(id: string, name: string): Promise<void> {
+    return this.request("DELETE", `/vms/${id}/snapshots/${encodeURIComponent(name)}`);
   }
 
   // --- containers -----------------------------------------------------------
