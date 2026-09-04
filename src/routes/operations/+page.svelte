@@ -1,11 +1,17 @@
 <script lang="ts">
+  import { browser } from "$app/environment";
   import { client } from "$lib/api/session";
+  import { auth } from "$lib/stores/auth";
   import { ApiRequestError } from "$lib/api";
   import type { OperationRecord, OperationStatus } from "@daygleve/schema";
 
   let operations = $state<OperationRecord[]>([]);
   let error = $state<string | null>(null);
   let loading = $state(true);
+  let reconciling = $state(false);
+  const canReconcile = $derived(
+    $auth.user?.roles.some((role) => role === "admin" || role === "operator") ?? false,
+  );
 
   const statusLabel: Record<OperationStatus, string> = {
     queued: "Queued",
@@ -32,8 +38,29 @@
     }
   }
 
+  async function reconcile() {
+    if (reconciling) return;
+    reconciling = true;
+    error = null;
+    try {
+      await client().reconcileOperations();
+      await load();
+    } catch (e) {
+      error = e instanceof ApiRequestError ? e.body.message : String(e);
+    } finally {
+      reconciling = false;
+    }
+  }
+
   $effect(() => {
     load();
+    if (!browser) return;
+    const timer = window.setInterval(() => {
+      if (operations.some((operation) => operation.status === "queued" || operation.status === "running")) {
+        load();
+      }
+    }, 2000);
+    return () => window.clearInterval(timer);
   });
 </script>
 
@@ -46,7 +73,14 @@
         was interrupted before the backend could record its outcome.
       </p>
     </div>
-    <button onclick={load} disabled={loading}>{loading ? "Loading…" : "Refresh"}</button>
+    <div class="actions">
+      {#if canReconcile}
+        <button onclick={reconcile} class="primary" disabled={reconciling}>
+          {reconciling ? "Reconcile queued…" : "Reconcile now"}
+        </button>
+      {/if}
+      <button onclick={load} disabled={loading}>{loading ? "Loading…" : "Refresh"}</button>
+    </div>
   </div>
 
   {#if error}<p class="error">{error}</p>{/if}
@@ -64,6 +98,7 @@
               <th>Operation</th>
               <th>Resource</th>
               <th>Status</th>
+              <th>Progress</th>
               <th>Started</th>
               <th>Finished</th>
               <th>Details</th>
@@ -81,6 +116,7 @@
                   {#if operation.resource_id}<span class="mono faint">{operation.resource_id}</span>{/if}
                 </td>
                 <td><span class="status status-{operation.status}">{statusLabel[operation.status]}</span></td>
+                <td class="faint">{operation.progress_pct != null ? `${operation.progress_pct}%` : "—"}</td>
                 <td class="faint">{operation.started_at?.slice(0, 19).replace("T", " ") ?? "—"}</td>
                 <td class="faint">{operation.finished_at?.slice(0, 19).replace("T", " ") ?? "—"}</td>
                 <td class:error-detail={operation.status === "failed"}>{messageFor(operation)}</td>
@@ -107,6 +143,12 @@
   .lede {
     margin: 0;
     max-width: 70ch;
+  }
+  .actions {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
   .table-wrap {
     overflow-x: auto;

@@ -131,6 +131,12 @@ export class DaygleClient {
   listOperations(): Promise<OperationRecord[]> {
     return this.request("GET", "/operations");
   }
+  getOperation(id: string): Promise<OperationRecord> {
+    return this.request("GET", `/operations/${encodeURIComponent(id)}`);
+  }
+  reconcileOperations(): Promise<OperationRecord> {
+    return this.request("POST", "/operations/reconcile");
+  }
 
   // --- auth -----------------------------------------------------------------
   login(req: LoginRequest): Promise<LoginResponse> {
