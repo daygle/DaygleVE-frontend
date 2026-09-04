@@ -72,12 +72,19 @@
   });
 
   async function loadSnapshots() {
+    // Capture the id this request is for; navigating to another VM changes `id`
+    // and starts a new load, so a late response from the old one must not clobber
+    // the new VM's state.
+    const reqId = id;
     try {
-      snapshots = await client().listVmSnapshots(id);
+      const list = await client().listVmSnapshots(reqId);
+      if (reqId !== id) return;
+      snapshots = list;
       // A clean load clears any stale load error (an empty list is a valid
       // result: a fresh VM, or a host without ZFS, simply has no snapshots).
       if (snapError) snapError = null;
     } catch (e) {
+      if (reqId !== id) return;
       // The backend returns an empty list for the "nothing to show" cases, so a
       // thrown error here is a real failure (auth/network/server) worth surfacing
       // rather than silently rendering an empty table.
@@ -453,7 +460,7 @@
             {/each}
           </tbody>
         </table>
-      {:else}
+      {:else if !snapError}
         <p class="muted">No snapshots yet.</p>
       {/if}
       <p class="muted small">
