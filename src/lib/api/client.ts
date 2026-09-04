@@ -35,6 +35,8 @@ import type {
   LoginResponse,
   Lxc,
   LxcPowerRequest,
+  LxcSnapshot,
+  CreateLxcSnapshotRequest,
   LxcSummary,
   NodeMetrics,
   Pool,
@@ -226,6 +228,18 @@ export class DaygleClient {
   }
   powerContainer(id: string, req: LxcPowerRequest): Promise<Lxc> {
     return this.request("POST", `/containers/${id}/power`, req);
+  }
+  listContainerSnapshots(id: string): Promise<LxcSnapshot[]> {
+    return this.request("GET", `/containers/${id}/snapshots`);
+  }
+  createContainerSnapshot(id: string, req: CreateLxcSnapshotRequest): Promise<LxcSnapshot> {
+    return this.request("POST", `/containers/${id}/snapshots`, req);
+  }
+  rollbackContainerSnapshot(id: string, name: string): Promise<void> {
+    return this.request("POST", `/containers/${id}/snapshots/${encodeURIComponent(name)}/rollback`);
+  }
+  deleteContainerSnapshot(id: string, name: string): Promise<void> {
+    return this.request("DELETE", `/containers/${id}/snapshots/${encodeURIComponent(name)}`);
   }
 
   // --- storage --------------------------------------------------------------

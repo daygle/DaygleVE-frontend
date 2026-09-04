@@ -5,11 +5,15 @@
   import { client } from "$lib/api/session";
   import { ApiRequestError } from "$lib/api";
   import StateBadge from "$components/StateBadge.svelte";
-  import type { Lxc, LxcPowerAction, UpdateLxcRequest } from "@daygleve/schema";
+  import type { Lxc, LxcPowerAction, UpdateLxcRequest, LxcSnapshot } from "@daygleve/schema";
 
   let ct = $state<Lxc | null>(null);
   let error = $state<string | null>(null);
   let busy = $state(false);
+  let snapshots = $state<LxcSnapshot[]>([]);
+  let snapName = $state("");
+  let snapBusy = $state(false);
+  let snapError = $state<string | null>(null);
 
   // --- edit modal ---
   let showEdit = $state(false);
@@ -26,8 +30,53 @@
   async function reload() {
     try {
       ct = await client().getContainer(id);
+      snapshots = await client().listContainerSnapshots(id);
     } catch (e) {
       error = e instanceof ApiRequestError ? e.body.message : String(e);
+    }
+  }
+
+  async function createSnapshot(e: SubmitEvent) {
+    e.preventDefault();
+    if (!snapName.trim()) return;
+    snapBusy = true;
+    snapError = null;
+    try {
+      await client().createContainerSnapshot(id, { name: snapName.trim() });
+      snapName = "";
+      snapshots = await client().listContainerSnapshots(id);
+    } catch (e) {
+      snapError = e instanceof ApiRequestError ? e.body.message : String(e);
+    } finally {
+      snapBusy = false;
+    }
+  }
+
+  async function rollbackSnapshot(name: string) {
+    if (!confirm(`Roll back ${ct?.name ?? "this container"} to "${name}"?`)) return;
+    snapBusy = true;
+    snapError = null;
+    try {
+      await client().rollbackContainerSnapshot(id, name);
+      await reload();
+    } catch (e) {
+      snapError = e instanceof ApiRequestError ? e.body.message : String(e);
+    } finally {
+      snapBusy = false;
+    }
+  }
+
+  async function deleteSnapshot(name: string) {
+    if (!confirm(`Delete snapshot "${name}"? This cannot be undone.`)) return;
+    snapBusy = true;
+    snapError = null;
+    try {
+      await client().deleteContainerSnapshot(id, name);
+      snapshots = await client().listContainerSnapshots(id);
+    } catch (e) {
+      snapError = e instanceof ApiRequestError ? e.body.message : String(e);
+    } finally {
+      snapBusy = false;
     }
   }
 
@@ -173,6 +222,34 @@
         </div>
       {/if}
     </div>
+
+    <div class="card snapshots-card">
+      <div class="snap-head"><h3>Snapshots</h3></div>
+      <form class="snap-form" onsubmit={createSnapshot}>
+        <input bind:value={snapName} placeholder="pre-upgrade" aria-label="Snapshot name" />
+        <button type="submit" class="primary" disabled={snapBusy}>Create snapshot</button>
+      </form>
+      {#if snapError}<p class="error">{snapError}</p>{/if}
+      {#if snapshots.length === 0}
+        <p class="muted">No snapshots.</p>
+      {:else}
+        <table class="snap-table">
+          <thead><tr><th>Name</th><th>Used</th><th></th></tr></thead>
+          <tbody>
+            {#each snapshots as snapshot (snapshot.id)}
+              <tr>
+                <td class="mono">{snapshot.name}</td>
+                <td>{(snapshot.used_bytes / 1073741824).toFixed(2)} GiB</td>
+                <td class="snap-actions">
+                  <button onclick={() => rollbackSnapshot(snapshot.name)} disabled={snapBusy}>Rollback</button>
+                  <button class="danger" onclick={() => deleteSnapshot(snapshot.name)} disabled={snapBusy}>Delete</button>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      {/if}
+    </div>
   {:else if !error}
     <p class="muted">Loading…</p>
   {/if}
@@ -240,6 +317,38 @@
   .edit-btn.danger:hover {
     color: #ff6b6b;
     border-color: #ff6b6b;
+  }
+  .snapshots-card {
+    margin-top: 1rem;
+  }
+  .snap-head h3 {
+    margin-top: 0;
+  }
+  .snap-form {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.8rem;
+  }
+  .snap-form input {
+    flex: 1;
+  }
+  .snap-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .snap-table th, .snap-table td {
+    text-align: left;
+    padding: 0.45rem 0.5rem 0.45rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .snap-actions {
+    text-align: right !important;
+  }
+  .snap-actions button {
+    margin-left: 0.4rem;
+  }
+  .danger {
+    color: var(--danger);
   }
   .powerbar {
     display: flex;
