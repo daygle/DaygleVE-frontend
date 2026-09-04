@@ -45,6 +45,7 @@
   let cloneDesc = $state("");
   let cloneBusy = $state(false);
   let cloneError = $state<string | null>(null);
+  let cloneNameInput = $state<HTMLInputElement>();
 
   // Snapshot state.
   let snapshots = $state<VmSnapshot[]>([]);
@@ -291,13 +292,16 @@
     if (showClone && !cloneBusy) showClone = false;
   }
 
-  function openClone() {
+  async function openClone() {
     if (!vm) return;
     cloneError = null;
     cloneName = `${vm.name}-clone`;
     cloneFull = false;
     cloneDesc = "";
     showClone = true;
+    // Move keyboard focus into the dialog for keyboard/screen-reader users.
+    await tick();
+    cloneNameInput?.focus();
   }
 
   async function submitClone(e: SubmitEvent) {
@@ -314,9 +318,10 @@
         full: cloneFull,
         description: cloneDesc.trim() || undefined,
       });
-      showClone = false;
-      // Jump to the freshly-created clone's detail page.
+      // Jump to the freshly-created clone's detail page. Only close the modal
+      // once navigation succeeds, so a failed goto still shows the error below.
       await goto(`/vms/${created.id}`);
+      showClone = false;
     } catch (err) {
       cloneError = err instanceof ApiRequestError ? err.body.message : String(err);
     } finally {
@@ -598,7 +603,12 @@
       <form onsubmit={submitClone}>
         <label class="field">
           <span>New VM name</span>
-          <input bind:value={cloneName} autocomplete="off" aria-label="New VM name" />
+          <input
+            bind:this={cloneNameInput}
+            bind:value={cloneName}
+            autocomplete="off"
+            aria-label="New VM name"
+          />
         </label>
         <label class="check">
           <input type="checkbox" bind:checked={cloneFull} />
