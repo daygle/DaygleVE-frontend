@@ -74,9 +74,15 @@
   async function loadSnapshots() {
     try {
       snapshots = await client().listVmSnapshots(id);
-    } catch {
-      // Non-fatal: a host without ZFS or a fresh VM simply has none.
+      // A clean load clears any stale load error (an empty list is a valid
+      // result: a fresh VM, or a host without ZFS, simply has no snapshots).
+      if (snapError) snapError = null;
+    } catch (e) {
+      // The backend returns an empty list for the "nothing to show" cases, so a
+      // thrown error here is a real failure (auth/network/server) worth surfacing
+      // rather than silently rendering an empty table.
       snapshots = [];
+      snapError = e instanceof ApiRequestError ? e.body.message : String(e);
     }
   }
 
@@ -109,7 +115,8 @@
     snapBusy = true;
     try {
       await client().rollbackVmSnapshot(id, name);
-      await reload();
+      // Rollback with `-r` discards newer snapshots, so refresh the list too.
+      await Promise.all([reload(), loadSnapshots()]);
     } catch (err) {
       snapError = err instanceof ApiRequestError ? err.body.message : String(err);
     } finally {
@@ -399,8 +406,19 @@
       <h3>Snapshots</h3>
       {#if snapError}<p class="error">{snapError}</p>{/if}
       <form class="snap-form" onsubmit={createSnapshot}>
-        <input bind:value={snapName} placeholder="Snapshot name" autocomplete="off" />
-        <input class="grow" bind:value={snapDesc} placeholder="Description (optional)" autocomplete="off" />
+        <input
+          bind:value={snapName}
+          placeholder="Snapshot name"
+          aria-label="Snapshot name"
+          autocomplete="off"
+        />
+        <input
+          class="grow"
+          bind:value={snapDesc}
+          placeholder="Description (optional)"
+          aria-label="Snapshot description (optional)"
+          autocomplete="off"
+        />
         <button type="submit" class="primary" disabled={snapBusy}>
           {snapBusy ? "Working…" : "Take snapshot"}
         </button>
