@@ -7,6 +7,11 @@
  */
 import type {
   ApiError,
+  BackupArtifact,
+  BackupPlan,
+  CreateBackupPlanRequest,
+  RestoreBackupRequest,
+  UpdateBackupPlanRequest,
   BindGpuRequest,
   Bridge,
   CloneSnapshotRequest,
@@ -122,6 +127,30 @@ export class DaygleClient {
     }
 
     return (await res.json()) as T;
+  }
+
+  // --- backups --------------------------------------------------------------
+  listBackupPlans(): Promise<BackupPlan[]> {
+    return this.request("GET", "/backups/plans");
+  }
+  createBackupPlan(req: CreateBackupPlanRequest): Promise<BackupPlan> {
+    return this.request("POST", "/backups/plans", req);
+  }
+  updateBackupPlan(id: string, req: UpdateBackupPlanRequest): Promise<BackupPlan> {
+    return this.request("PATCH", `/backups/plans/${encodeURIComponent(id)}`, req);
+  }
+  deleteBackupPlan(id: string): Promise<void> {
+    return this.request("DELETE", `/backups/plans/${encodeURIComponent(id)}`);
+  }
+  runBackupPlan(id: string): Promise<OperationRecord> {
+    return this.request("POST", `/backups/plans/${encodeURIComponent(id)}/run`);
+  }
+  listBackupArtifacts(planId?: string): Promise<BackupArtifact[]> {
+    const query = planId ? `?plan_id=${encodeURIComponent(planId)}` : "";
+    return this.request("GET", `/backups/artifacts${query}`);
+  }
+  restoreBackup(id: string, req: RestoreBackupRequest): Promise<OperationRecord> {
+    return this.request("POST", `/backups/artifacts/${encodeURIComponent(id)}/restore`, req);
   }
 
   // --- system ---------------------------------------------------------------
