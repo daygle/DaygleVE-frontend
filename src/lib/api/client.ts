@@ -22,6 +22,7 @@ import type {
   CreateSnapshotRequest,
   CreateShareRequest,
   ChangePasswordRequest,
+  BrokerSplitInventory,
   CloneVmRequest,
   CreateUserRequest,
   CreateVlanRequest,
@@ -156,6 +157,10 @@ export class DaygleClient {
   // --- system ---------------------------------------------------------------
   health(): Promise<HealthStatus> {
     return this.request("GET", "/health");
+  }
+  /** Read-only view of the current broker split posture (security inventory). */
+  brokerSplitInventory(): Promise<BrokerSplitInventory> {
+    return this.request("GET", "/system/broker-split");
   }
 
   // --- operations -----------------------------------------------------------
