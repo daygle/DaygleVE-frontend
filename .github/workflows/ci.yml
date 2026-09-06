@@ -17,10 +17,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # No npm cache: the shared API types come from a moving `@daygleve/schema`
+      # git dependency (#main), so package-lock.json is intentionally not
+      # committed and `cache: npm` (which requires a lockfile) would fail here.
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: npm
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
