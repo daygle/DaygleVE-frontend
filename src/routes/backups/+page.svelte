@@ -1,12 +1,11 @@
 <script lang="ts">
   import { client } from "$lib/api/session";
-  import { ApiRequestError } from "$lib/api";
+  import { ApiRequestError, operationFailureMessage } from "$lib/api";
   import type {
     BackupArtifact,
     BackupPlan,
     BackupSourceType,
     CreateBackupPlanRequest,
-    OperationRecord,
   } from "@daygleve/schema";
 
   let plans = $state<BackupPlan[]>([]);
@@ -92,21 +91,13 @@
   async function run(plan: BackupPlan) {
     try {
       const op = await client().runBackupPlan(plan.id);
-      await poll(op);
+      const result = await client().pollOperation(op, { attempts: 120 });
       await load();
+      const failure = operationFailureMessage(result);
+      if (failure) error = `Backup "${plan.name}" failed: ${failure}`;
     } catch (e) {
       error = message(e);
     }
-  }
-
-  async function poll(op: OperationRecord) {
-    const c = client();
-    for (let i = 0; i < 120; i++) {
-      const record = await c.getOperation(op.id);
-      if (["succeeded", "failed", "needs_review"].includes(record.status)) return record;
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-    return op;
   }
 
   async function toggle(plan: BackupPlan) {
@@ -140,8 +131,10 @@
         target_id: target.trim() || undefined,
         force,
       });
-      await poll(op);
+      const result = await client().pollOperation(op, { attempts: 120 });
       await load();
+      const failure = operationFailureMessage(result);
+      if (failure) error = `Restore failed: ${failure}`;
     } catch (e) {
       error = message(e);
     }

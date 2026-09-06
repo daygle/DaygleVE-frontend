@@ -41,6 +41,7 @@ import type {
   NetworkShare,
   NodeMetrics,
   OperationRecord,
+  OperationStatus,
   Pool,
   QuarantineDecisionRequest,
   ReconciliationQuarantineRecord,
@@ -171,6 +172,27 @@ export class DaygleClient {
   }
   getOperation(id: string): Promise<OperationRecord> {
     return this.request("GET", `/operations/${encodeURIComponent(id)}`);
+  }
+  /**
+   * Poll an operation until it reaches a terminal state (succeeded, failed,
+   * needs_review, or cancelled) or the attempt budget runs out, returning the
+   * latest record either way. Callers should inspect the result with
+   * {@link operationFailureMessage} and surface any failure — a terminal state
+   * other than `succeeded` is not thrown.
+   */
+  async pollOperation(
+    op: OperationRecord,
+    opts?: { attempts?: number; intervalMs?: number },
+  ): Promise<OperationRecord> {
+    const attempts = opts?.attempts ?? 60;
+    const intervalMs = opts?.intervalMs ?? 1000;
+    let record = op;
+    for (let i = 0; i < attempts; i++) {
+      record = await this.getOperation(op.id);
+      if (isTerminalOperation(record.status)) return record;
+      await new Promise((r) => setTimeout(r, intervalMs));
+    }
+    return record;
   }
   reconcileOperations(opts?: { mode?: "dry_run" | "repair"; approval_id?: string; quarantine_unmanaged?: boolean }): Promise<OperationRecord> {
     return this.request("POST", "/operations/reconcile", opts);
@@ -374,5 +396,41 @@ export class DaygleClient {
     } catch {
       return ticketPath;
     }
+  }
+}
+
+/** Operation states from which no further transition occurs. */
+const TERMINAL_OPERATION_STATES: readonly OperationStatus[] = [
+  "succeeded",
+  "failed",
+  "needs_review",
+  "cancelled",
+];
+
+/** Whether an operation has reached a terminal state. */
+export function isTerminalOperation(status: OperationStatus): boolean {
+  return TERMINAL_OPERATION_STATES.includes(status);
+}
+
+/**
+ * A user-facing failure message for a polled operation, or `null` when it
+ * succeeded. Covers the non-success terminal states plus the timed-out case
+ * (a record still `queued`/`running` after polling gave up), preferring the
+ * operation's own `error`/`message` when present.
+ */
+export function operationFailureMessage(record: OperationRecord): string | null {
+  if (record.status === "succeeded") return null;
+  const detail = record.error ?? record.message ?? null;
+  switch (record.status) {
+    case "failed":
+      return detail ?? "the operation failed";
+    case "cancelled":
+      return detail ?? "the operation was cancelled";
+    case "needs_review":
+      return detail ?? "the operation needs review; check host state";
+    default:
+      // Still queued/running when polling gave up: report it as unfinished
+      // rather than as a success.
+      return detail ?? "the operation is still running; check Operations for its outcome";
   }
 }

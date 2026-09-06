@@ -1,7 +1,7 @@
 <script lang="ts">
   import { client } from "$lib/api/session";
-  import { ApiRequestError } from "$lib/api";
-  import type { Pool, Dataset, NetworkShare, ShareType, CreateShareRequest, OperationRecord } from "@daygleve/schema";
+  import { ApiRequestError, operationFailureMessage } from "$lib/api";
+  import type { Pool, Dataset, NetworkShare, ShareType, CreateShareRequest } from "@daygleve/schema";
 
   let pools = $state<Pool[]>([]);
   let datasets = $state<Dataset[]>([]);
@@ -96,23 +96,17 @@
       const op = await client().createShare(req);
       showAdd = false;
       resetForm();
-      await pollOperation(op);
+      const result = await client().pollOperation(op, { attempts: 30 });
       await loadShares();
+      // The dialog is already closed, so surface an async failure on the
+      // page-level banner rather than letting it vanish silently.
+      const failure = operationFailureMessage(result);
+      if (failure) error = `Add share failed: ${failure}`;
     } catch (err) {
       formError = err instanceof ApiRequestError ? err.body.message : String(err);
     } finally {
       adding = false;
     }
-  }
-
-  async function pollOperation(op: OperationRecord, maxAttempts = 30) {
-    const c = client();
-    for (let i = 0; i < maxAttempts; i++) {
-      const record = await c.getOperation(op.id);
-      if (record.status === "succeeded" || record.status === "failed") return record;
-      await new Promise((r) => setTimeout(r, 1000));
-    }
-    return op;
   }
 
   async function removeShare(share: NetworkShare) {
