@@ -12,7 +12,9 @@ import type {
   BindGpuRequest,
   Bridge,
   BrokerSplitInventory,
+  ChangePasswordRequest,
   CloneSnapshotRequest,
+  CloneVmRequest,
   ConsoleTicket,
   CreateBridgeRequest,
   CreateBackupPlanRequest,
@@ -27,11 +29,13 @@ import type {
   CreateVmSnapshotRequest,
   CurrentUser,
   Dataset,
+  GpuDevice,
   HealthStatus,
   IsoImage,
   Lxc,
   LxcPowerRequest,
   LxcSnapshot,
+  LxcSummary,
   LoginRequest,
   LoginResponse,
   NetworkShare,
@@ -42,10 +46,12 @@ import type {
   ReconciliationQuarantineRecord,
   RestoreBackupRequest,
   Snapshot,
+  UpdateBackupPlanRequest,
   UpdateLxcRequest,
   UpdateUserRequest,
   UpdateVmRequest,
   User,
+  Vlan,
   Vm,
   VmPowerRequest,
   VmSnapshot,
@@ -177,10 +183,6 @@ export class DaygleClient {
 
   decideQuarantine(id: string, req: QuarantineDecisionRequest): Promise<ReconciliationQuarantineRecord> {
     return this.request("PATCH", `/operations/quarantine/${encodeURIComponent(id)}`, req);
-  }
-
-  brokerSplitInventory(): Promise<BrokerSplitInventory> {
-    return this.request("GET", "/system/broker-split");
   }
 
   // --- auth -----------------------------------------------------------------
