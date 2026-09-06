@@ -1,8 +1,8 @@
 <script lang="ts">
   import { client } from "$lib/api/session";
-  import { ApiRequestError } from "$lib/api";
+  import { ApiRequestError, operationFailureMessage } from "$lib/api";
   import StateBadge from "$components/StateBadge.svelte";
-  import type { LxcSummary, LxcPowerAction, Bridge, CreateLxcRequest, OperationRecord } from "@daygleve/schema";
+  import type { LxcSummary, LxcPowerAction, Bridge, CreateLxcRequest } from "@daygleve/schema";
 
   let containers = $state<LxcSummary[]>([]);
   let error = $state<string | null>(null);
@@ -103,23 +103,17 @@
       const op = await client().createContainer(req);
       showCreate = false;
       resetForm();
-      await pollOperation(op);
+      const result = await client().pollOperation(op);
       await load();
+      // The dialog is already closed, so surface an async failure on the
+      // page-level banner rather than letting it vanish silently.
+      const failure = operationFailureMessage(result);
+      if (failure) error = `Create container failed: ${failure}`;
     } catch (err) {
       formError = err instanceof ApiRequestError ? err.body.message : String(err);
     } finally {
       creating = false;
     }
-  }
-
-  async function pollOperation(op: OperationRecord, maxAttempts = 60) {
-    const c = client();
-    for (let i = 0; i < maxAttempts; i++) {
-      const record = await c.getOperation(op.id);
-      if (record.status === "succeeded" || record.status === "failed") return record;
-      await new Promise((r) => setTimeout(r, 1000));
-    }
-    return op;
   }
 
   function resetForm() {
