@@ -9,47 +9,43 @@ import type {
   ApiError,
   BackupArtifact,
   BackupPlan,
-  CreateBackupPlanRequest,
-  RestoreBackupRequest,
-  UpdateBackupPlanRequest,
   BindGpuRequest,
   Bridge,
+  BrokerSplitInventory,
   CloneSnapshotRequest,
   ConsoleTicket,
   CreateBridgeRequest,
+  CreateBackupPlanRequest,
   CreateDatasetRequest,
   CreateLxcRequest,
-  CreateSnapshotRequest,
+  CreateLxcSnapshotRequest,
   CreateShareRequest,
-  ChangePasswordRequest,
-  BrokerSplitInventory,
-  CloneVmRequest,
+  CreateSnapshotRequest,
   CreateUserRequest,
   CreateVlanRequest,
   CreateVmRequest,
   CreateVmSnapshotRequest,
   CurrentUser,
   Dataset,
-  NetworkShare,
-  OperationRecord,
-  UpdateUserRequest,
-  User,
-  GpuDevice,
   HealthStatus,
   IsoImage,
-  LoginRequest,
-  LoginResponse,
   Lxc,
   LxcPowerRequest,
   LxcSnapshot,
-  CreateLxcSnapshotRequest,
-  LxcSummary,
+  LoginRequest,
+  LoginResponse,
+  NetworkShare,
   NodeMetrics,
+  OperationRecord,
   Pool,
+  QuarantineDecisionRequest,
+  ReconciliationQuarantineRecord,
+  RestoreBackupRequest,
   Snapshot,
   UpdateLxcRequest,
+  UpdateUserRequest,
   UpdateVmRequest,
-  Vlan,
+  User,
   Vm,
   VmPowerRequest,
   VmSnapshot,
@@ -170,8 +166,21 @@ export class DaygleClient {
   getOperation(id: string): Promise<OperationRecord> {
     return this.request("GET", `/operations/${encodeURIComponent(id)}`);
   }
-  reconcileOperations(): Promise<OperationRecord> {
-    return this.request("POST", "/operations/reconcile");
+  reconcileOperations(opts?: { mode?: "dry_run" | "repair"; approval_id?: string; quarantine_unmanaged?: boolean }): Promise<OperationRecord> {
+    return this.request("POST", "/operations/reconcile", opts);
+  }
+
+  // --- reconciliation findings ---------------------------------------------
+  listQuarantine(): Promise<ReconciliationQuarantineRecord[]> {
+    return this.request("GET", "/operations/quarantine");
+  }
+
+  decideQuarantine(id: string, req: QuarantineDecisionRequest): Promise<ReconciliationQuarantineRecord> {
+    return this.request("PATCH", `/operations/quarantine/${encodeURIComponent(id)}`, req);
+  }
+
+  brokerSplitInventory(): Promise<BrokerSplitInventory> {
+    return this.request("GET", "/system/broker-split");
   }
 
   // --- auth -----------------------------------------------------------------
