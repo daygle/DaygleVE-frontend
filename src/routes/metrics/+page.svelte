@@ -30,34 +30,71 @@
 
   $effect(() => {
     if (!browser) return;
-    const source = new EventSource(client().metricsStreamUrl());
 
-    source.onmessage = (ev) => {
+    // The stream is authorized by a one-time ticket rather than the bearer
+    // token in the URL, and EventSource would otherwise retry the (now spent)
+    // ticket forever — so manage reconnection here: mint a fresh ticket for
+    // every connection and re-open on error with a short backoff.
+    let source: EventSource | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+
+    function scheduleReconnect() {
+      if (cancelled || reconnectTimer) return;
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        void connect();
+      }, 2000);
+    }
+
+    async function connect() {
+      if (cancelled) return;
       try {
-        const frame = JSON.parse(ev.data) as MetricsEvent;
-        if (frame.scope === "node" && frame.node) {
-          const n = frame.node;
-          node = n;
-          error = null;
-          live = true;
-          cpuHist = push(cpuHist, n.cpu_pct);
-          memHist = push(
-            memHist,
-            n.memory_total_bytes ? (n.memory_used_bytes / n.memory_total_bytes) * 100 : 0,
-          );
-          netHist = push(netHist, n.net_rx_bps + n.net_tx_bps);
-          diskHist = push(diskHist, n.disk_read_bps + n.disk_write_bps);
-        }
+        const { ticket } = await client().metricsStreamTicket();
+        if (cancelled) return;
+        const es = new EventSource(client().metricsStreamUrl(ticket));
+        source = es;
+        es.onmessage = (ev) => {
+          try {
+            const frame = JSON.parse(ev.data) as MetricsEvent;
+            if (frame.scope === "node" && frame.node) {
+              const n = frame.node;
+              node = n;
+              error = null;
+              live = true;
+              cpuHist = push(cpuHist, n.cpu_pct);
+              memHist = push(
+                memHist,
+                n.memory_total_bytes ? (n.memory_used_bytes / n.memory_total_bytes) * 100 : 0,
+              );
+              netHist = push(netHist, n.net_rx_bps + n.net_tx_bps);
+              diskHist = push(diskHist, n.disk_read_bps + n.disk_write_bps);
+            }
+          } catch {
+            // Ignore an unparseable frame; the next one refreshes the view.
+          }
+        };
+        es.onerror = () => {
+          live = false;
+          if (!node) error = "Connecting to the metrics stream…";
+          es.close();
+          if (source === es) source = null;
+          scheduleReconnect();
+        };
       } catch {
-        // Ignore an unparseable frame; the next one refreshes the view.
+        live = false;
+        if (!node) error = "Connecting to the metrics stream…";
+        scheduleReconnect();
       }
-    };
-    source.onerror = () => {
-      live = false;
-      if (!node) error = "Connecting to the metrics stream…";
-    };
+    }
 
-    return () => source.close();
+    void connect();
+
+    return () => {
+      cancelled = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      source?.close();
+    };
   });
 </script>
 

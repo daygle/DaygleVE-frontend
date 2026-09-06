@@ -5,7 +5,7 @@ export {
   isTerminalOperation,
   operationFailureMessage,
 } from "./client";
-export type { ClientOptions } from "./client";
+export type { ClientOptions, MetricsStreamTicket } from "./client";
 
 // Re-export the shared schema types so app code can import them from one place:
 //   import type { Vm, VmState } from "$lib/api";

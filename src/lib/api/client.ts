@@ -366,13 +366,21 @@ export class DaygleClient {
     return this.request("GET", "/metrics/node");
   }
   /**
-   * URL of the SSE metrics stream; open with `new EventSource(url)`. The
-   * bearer token is carried as a `?token=` query param because `EventSource`
-   * cannot set an `Authorization` header.
+   * Mint a short-lived, one-time ticket for the SSE metrics stream. The bearer
+   * token travels here in the `Authorization` header (via {@link request}), so
+   * it never lands in a URL. Exchange it for a stream URL with
+   * {@link metricsStreamUrl}; mint a fresh ticket for every (re)connection.
    */
-  metricsStreamUrl(): string {
-    const q = this.token ? `?token=${encodeURIComponent(this.token)}` : "";
-    return `${this.baseUrl}/metrics/stream${q}`;
+  metricsStreamTicket(): Promise<MetricsStreamTicket> {
+    return this.request("POST", "/metrics/stream/ticket");
+  }
+  /**
+   * URL of the SSE metrics stream for a ticket from {@link metricsStreamTicket};
+   * open with `new EventSource(url)`. The one-time ticket — not the long-lived
+   * bearer token — is what rides in the query string.
+   */
+  metricsStreamUrl(ticket: string): string {
+    return `${this.baseUrl}/metrics/stream?ticket=${encodeURIComponent(ticket)}`;
   }
 
   /**
@@ -397,6 +405,17 @@ export class DaygleClient {
       return ticketPath;
     }
   }
+}
+
+/**
+ * A short-lived, one-time authorization to open the SSE metrics stream. This is
+ * an internal transport handshake (not a resource in the shared schema): the
+ * browser exchanges its bearer token for a ticket so the token never rides in a
+ * stream URL.
+ */
+export interface MetricsStreamTicket {
+  ticket: string;
+  expires_at: string;
 }
 
 /** Operation states from which no further transition occurs. */
