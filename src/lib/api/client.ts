@@ -357,6 +357,10 @@ export class DaygleClient {
   powerContainer(id: string, req: LxcPowerRequest): Promise<Lxc> {
     return this.request("POST", `/containers/${id}/power`, req);
   }
+  /** Mint a one-time ticket for the container's console. */
+  containerConsole(id: string): Promise<ConsoleTicket> {
+    return this.request("POST", `/containers/${id}/console`);
+  }
   listContainerSnapshots(id: string): Promise<LxcSnapshot[]> {
     return this.request("GET", `/containers/${id}/snapshots`);
   }

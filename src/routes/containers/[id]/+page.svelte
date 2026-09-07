@@ -1,15 +1,23 @@
 <script lang="ts">
-  import { tick } from "svelte";
+  import { tick, onDestroy } from "svelte";
   import { page } from "$app/stores";
   import { goto } from "$app/navigation";
   import { client } from "$lib/api/session";
   import { ApiRequestError } from "$lib/api";
   import StateBadge from "$components/StateBadge.svelte";
+  import "@xterm/xterm/css/xterm.css";
   import type { Lxc, LxcPowerAction, UpdateLxcRequest, LxcSnapshot } from "@daygleve/schema";
 
   let ct = $state<Lxc | null>(null);
   let error = $state<string | null>(null);
   let busy = $state(false);
+
+  // Console (xterm.js) state; the terminal and socket are browser-only.
+  let consoleEl = $state<HTMLDivElement>();
+  let showConsole = $state(false);
+  let consoleStatus = $state("");
+  let term: { dispose: () => void } | null = null;
+  let ws: WebSocket | null = null;
   let snapshots = $state<LxcSnapshot[]>([]);
   let snapName = $state("");
   let snapBusy = $state(false);
@@ -167,6 +175,68 @@
       busy = false;
     }
   }
+
+  async function openConsole() {
+    error = null;
+    try {
+      const ticket = await client().containerConsole(id);
+      const url = client().consoleWebsocketUrl(ticket.websocket_path);
+      showConsole = true;
+      consoleStatus = "connecting";
+      await tick();
+      if (!showConsole || !consoleEl) return;
+      const [{ Terminal }, { FitAddon }] = await Promise.all([
+        import("@xterm/xterm"),
+        import("@xterm/addon-fit"),
+      ]);
+      if (!showConsole || !consoleEl) return;
+      const terminal = new Terminal({ cursorBlink: true, fontSize: 13, scrollback: 5000 });
+      const fit = new FitAddon();
+      terminal.loadAddon(fit);
+      terminal.open(consoleEl);
+      fit.fit();
+      const socket = new WebSocket(url);
+      socket.binaryType = "arraybuffer";
+      const encoder = new TextEncoder();
+      socket.onopen = () => {
+        consoleStatus = "connected";
+        terminal.focus();
+      };
+      socket.onmessage = (ev: MessageEvent) => {
+        if (ev.data instanceof ArrayBuffer) terminal.write(new Uint8Array(ev.data));
+        else terminal.write(ev.data as string);
+      };
+      socket.onclose = () => (consoleStatus = "disconnected");
+      socket.onerror = () => (consoleStatus = "connection lost");
+      terminal.onData((data: string) => {
+        if (socket.readyState === WebSocket.OPEN) socket.send(encoder.encode(data));
+      });
+      term = terminal;
+      ws = socket;
+    } catch (e) {
+      error = e instanceof ApiRequestError ? e.body.message : String(e);
+      showConsole = false;
+    }
+  }
+
+  function closeConsole() {
+    try {
+      ws?.close();
+    } catch {
+      // already gone
+    }
+    try {
+      term?.dispose();
+    } catch {
+      // already disposed
+    }
+    ws = null;
+    term = null;
+    showConsole = false;
+    consoleStatus = "";
+  }
+
+  onDestroy(closeConsole);
 </script>
 
 <svelte:window onkeydown={onWindowKeydown} />
@@ -220,6 +290,24 @@
           <h3>Description</h3>
           <p>{ct.description}</p>
         </div>
+      {/if}
+    </div>
+
+    <div class="card console-card">
+      <div class="console-head">
+        <h3>Console</h3>
+        {#if showConsole}
+          <span class="muted">{consoleStatus}</span>
+          <button onclick={closeConsole}>Close</button>
+        {:else}
+          <button class="edit-btn" onclick={openConsole}>Open console</button>
+        {/if}
+      </div>
+      {#if showConsole}
+        <div class="console-view" bind:this={consoleEl}></div>
+        <p class="muted">Live container console · xterm.js over a one-time ticket</p>
+      {:else}
+        <p class="muted">Opens a live console (<code>lxc-console</code>) to the running container.</p>
       {/if}
     </div>
 
@@ -297,6 +385,28 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
+  }
+  .console-card {
+    margin-top: 1rem;
+  }
+  .console-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .console-head h3 {
+    margin: 0;
+    flex: 1;
+  }
+  .console-view {
+    margin-top: 0.75rem;
+    width: 100%;
+    height: 420px;
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    padding: 4px;
   }
   .edit-btn {
     cursor: pointer;
