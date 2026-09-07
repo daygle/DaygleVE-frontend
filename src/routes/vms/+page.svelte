@@ -11,6 +11,7 @@
     DiskBus,
     NicModel,
     Firmware,
+    DisplayProtocol,
     CreateVmRequest,
     UsbDevice,
     PciDevice,
@@ -40,6 +41,7 @@
   let vcpus = $state(2);
   let memoryMib = $state(2048);
   let firmware = $state<Firmware>("uefi");
+  let display = $state<DisplayProtocol>("vnc");
   let pool = $state("");
   let diskSizeGib = $state(20);
   let diskBus = $state<DiskBus>("virtio");
@@ -143,6 +145,7 @@
       vcpus,
       memory_mib: memoryMib,
       firmware,
+      display,
       disks: [
         {
           dataset: `${pool}/${name.trim()}-disk0`,
@@ -187,6 +190,7 @@
     vcpus = 2;
     memoryMib = 2048;
     firmware = "uefi";
+    display = "vnc";
     diskSizeGib = 20;
     diskBus = "virtio";
     nicModel = "virtio";
@@ -282,6 +286,14 @@
             <select bind:value={firmware}>
               <option value="uefi">UEFI (OVMF)</option>
               <option value="bios">BIOS (SeaBIOS)</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Display</span>
+            <select bind:value={display}>
+              <option value="vnc">VNC (in-browser console)</option>
+              <option value="spice">SPICE (remote-viewer)</option>
             </select>
           </label>
 
