@@ -304,6 +304,27 @@ export class DaygleClient {
   vmSerialConsole(id: string): Promise<ConsoleTicket> {
     return this.request("POST", `/vms/${id}/serial-console`);
   }
+  /**
+   * Fetch the VM's SPICE `remote-viewer` connection file (`.vv`) as text.
+   * Returned as text (not JSON) so the caller can offer it as a download.
+   */
+  async vmSpiceConnection(id: string): Promise<string> {
+    const headers: Record<string, string> = {};
+    if (this.token) headers["authorization"] = `Bearer ${this.token}`;
+    const res = await this.doFetch(
+      `${this.baseUrl}/vms/${encodeURIComponent(id)}/spice`,
+      { method: "POST", headers },
+    );
+    if (!res.ok) {
+      const err = (await res.json().catch(() => ({
+        code: "internal",
+        message: res.statusText,
+      }))) as ApiError;
+      if (res.status === 401) this.onUnauthorized?.();
+      throw new ApiRequestError(res.status, err);
+    }
+    return res.text();
+  }
   listVmSnapshots(id: string): Promise<VmSnapshot[]> {
     return this.request("GET", `/vms/${id}/snapshots`);
   }

@@ -396,6 +396,24 @@
   // connection.
   onDestroy(closeConsole);
 
+  async function downloadSpice() {
+    error = null;
+    try {
+      const vv = await client().vmSpiceConnection(id);
+      const blob = new Blob([vv], { type: "application/x-virt-viewer" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${vm?.name ?? "console"}.vv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      error = e instanceof ApiRequestError ? e.body.message : String(e);
+    }
+  }
+
   async function openSerialConsole() {
     error = null;
     try {
@@ -535,14 +553,22 @@
       <div class="card console-card">
         <div class="console-head">
           <h3>Console</h3>
-          {#if showConsole}
+          {#if vm.display === "spice"}
+            <button class="primary" onclick={downloadSpice}>Download SPICE connection</button>
+          {:else if showConsole}
             <span class="muted">{consoleStatus}</span>
             <button onclick={closeConsole}>Close</button>
           {:else}
             <button class="primary" onclick={openConsole}>Open console</button>
           {/if}
         </div>
-        {#if showConsole}
+        {#if vm.display === "spice"}
+          <p class="muted">
+            This VM uses a SPICE display. Download the connection file and open it with
+            <code>remote-viewer</code> (virt-viewer). The SPICE endpoint must be reachable from
+            your machine (see <code>DAYGLEVE_SPICE_LISTEN</code>, or use an SSH tunnel).
+          </p>
+        {:else if showConsole}
           <div class="console-view" bind:this={consoleEl}></div>
           <p class="muted">Live VNC · noVNC over a one-time ticket</p>
         {:else}
