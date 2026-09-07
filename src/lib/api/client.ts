@@ -48,6 +48,7 @@ import type {
   ReconciliationQuarantineRecord,
   RestoreBackupRequest,
   Snapshot,
+  StorageFile,
   UpdateBackupPlanRequest,
   UpdateLxcRequest,
   UpdateUserRequest,
@@ -120,6 +121,39 @@ export class DaygleClient {
     });
 
     if (res.status === 204) return undefined as T;
+
+    if (!res.ok) {
+      const err = (await res.json().catch(() => ({
+        code: "internal",
+        message: res.statusText,
+      }))) as ApiError;
+      if (res.status === 401) this.onUnauthorized?.();
+      const requestId = res.headers.get("x-request-id");
+      if (requestId && !err.request_id) err.request_id = requestId;
+      throw new ApiRequestError(res.status, err);
+    }
+
+    return (await res.json()) as T;
+  }
+
+  /**
+   * Upload a raw binary body (a file) to `path`, returning the parsed JSON
+   * response. Unlike {@link request} this sends the bytes directly with an
+   * `application/octet-stream` content type — the backend's upload routes read
+   * the request body as the file and stream it to disk — so it must not be used
+   * for JSON endpoints.
+   */
+  private async upload<T>(path: string, file: Blob): Promise<T> {
+    const headers: Record<string, string> = {
+      "content-type": "application/octet-stream",
+    };
+    if (this.token) headers["authorization"] = `Bearer ${this.token}`;
+
+    const res = await this.doFetch(`${this.baseUrl}${path}`, {
+      method: "POST",
+      headers,
+      body: file,
+    });
 
     if (!res.ok) {
       const err = (await res.json().catch(() => ({
@@ -339,6 +373,30 @@ export class DaygleClient {
   }
   deleteShare(id: string): Promise<void> {
     return this.request("DELETE", `/storage/shares/${id}`);
+  }
+
+  // --- media library (uploaded ISOs + CT templates) -------------------------
+  /** Uploaded install ISOs in the node's local library. */
+  listLibraryIsos(): Promise<StorageFile[]> {
+    return this.request("GET", "/storage/isos");
+  }
+  /** Uploaded LXC container-template tarballs in the node's local library. */
+  listCtTemplates(): Promise<StorageFile[]> {
+    return this.request("GET", "/storage/ct-templates");
+  }
+  /** Stream a file into the ISO library under `name`. */
+  uploadIso(name: string, file: Blob): Promise<StorageFile> {
+    return this.upload(`/storage/isos/${encodeURIComponent(name)}`, file);
+  }
+  /** Stream a file into the CT-template library under `name`. */
+  uploadCtTemplate(name: string, file: Blob): Promise<StorageFile> {
+    return this.upload(`/storage/ct-templates/${encodeURIComponent(name)}`, file);
+  }
+  deleteIso(name: string): Promise<void> {
+    return this.request("DELETE", `/storage/isos/${encodeURIComponent(name)}`);
+  }
+  deleteCtTemplate(name: string): Promise<void> {
+    return this.request("DELETE", `/storage/ct-templates/${encodeURIComponent(name)}`);
   }
 
   // --- network --------------------------------------------------------------

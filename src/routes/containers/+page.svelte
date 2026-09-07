@@ -2,7 +2,14 @@
   import { client } from "$lib/api/session";
   import { ApiRequestError, operationFailureMessage } from "$lib/api";
   import StateBadge from "$components/StateBadge.svelte";
-  import type { LxcSummary, LxcPowerAction, Bridge, CreateLxcRequest, LxcMount } from "@daygleve/schema";
+  import type {
+    LxcSummary,
+    LxcPowerAction,
+    Bridge,
+    CreateLxcRequest,
+    LxcMount,
+    StorageFile,
+  } from "@daygleve/schema";
 
   let containers = $state<LxcSummary[]>([]);
   let error = $state<string | null>(null);
@@ -27,6 +34,11 @@
 
   // form fields
   let name = $state("");
+  // Where the rootfs comes from: a download image (<dist>-<release>) or an
+  // uploaded CT-template tarball from the node's local library.
+  let templateSource = $state<"download" | "upload">("download");
+  let ctTemplates = $state<StorageFile[]>([]);
+  let templateFile = $state("");
   let template = $state(templates[0]);
   let vcpus = $state(1);
   let memoryMib = $state(512);
@@ -74,6 +86,12 @@
     } catch {
       bridges = [];
     }
+    // Uploaded CT templates populate the "upload" source picker.
+    try {
+      ctTemplates = await client().listCtTemplates();
+    } catch {
+      ctTemplates = [];
+    }
   }
 
   function closeCreate() {
@@ -91,13 +109,21 @@
       formError = "Name is required.";
       return;
     }
-    if (!template.trim()) {
+    const useUpload = templateSource === "upload";
+    if (useUpload && !templateFile) {
+      formError = "Select an uploaded template, or upload one from Storage first.";
+      return;
+    }
+    if (!useUpload && !template.trim()) {
       formError = "A template is required (e.g. debian-bookworm).";
       return;
     }
     const req: CreateLxcRequest = {
       name: name.trim(),
-      template: template.trim(),
+      // With an uploaded template the label is the file name; the tarball
+      // supplies the rootfs via template_file.
+      template: useUpload ? templateFile : template.trim(),
+      template_file: useUpload ? templateFile : undefined,
       vcpus,
       memory_mib: memoryMib,
       rootfs_size_gib: rootfsGib,
@@ -129,6 +155,8 @@
 
   function resetForm() {
     name = "";
+    templateSource = "download";
+    templateFile = "";
     template = templates[0];
     vcpus = 1;
     memoryMib = 512;
@@ -208,12 +236,31 @@
             <input bind:value={name} placeholder="web01" autocomplete="off" />
           </label>
           <label class="field">
-            <span>Template</span>
-            <input bind:value={template} list="lxc-templates" autocomplete="off" />
-            <datalist id="lxc-templates">
-              {#each templates as t (t)}<option value={t}></option>{/each}
-            </datalist>
+            <span>Template source</span>
+            <select bind:value={templateSource}>
+              <option value="download">Download image</option>
+              <option value="upload">Uploaded template</option>
+            </select>
           </label>
+          {#if templateSource === "download"}
+            <label class="field">
+              <span>Template</span>
+              <input bind:value={template} list="lxc-templates" autocomplete="off" />
+              <datalist id="lxc-templates">
+                {#each templates as t (t)}<option value={t}></option>{/each}
+              </datalist>
+            </label>
+          {:else}
+            <label class="field">
+              <span>Uploaded template</span>
+              <select bind:value={templateFile}>
+                <option value="">Select a template…</option>
+                {#each ctTemplates as t (t.name)}
+                  <option value={t.name}>{t.name}</option>
+                {/each}
+              </select>
+            </label>
+          {/if}
           <label class="field">
             <span>vCPUs</span>
             <input type="number" min="1" bind:value={vcpus} />
@@ -252,9 +299,14 @@
         </label>
 
         <p class="hint">
-          The template is a download image named <code>&lt;dist&gt;-&lt;release&gt;</code>
-          (e.g. <code>debian-bookworm</code>). The root filesystem is a ZFS dataset on the
-          node's default pool.
+          {#if templateSource === "download"}
+            The template is a download image named <code>&lt;dist&gt;-&lt;release&gt;</code>
+            (e.g. <code>debian-bookworm</code>).
+          {:else}
+            The rootfs is built from an uploaded template tarball. Upload one under
+            <strong>Storage → Media library</strong>.
+          {/if}
+          The root filesystem is a ZFS dataset on the node's default pool.
         </p>
 
         <div class="mounts-head">
