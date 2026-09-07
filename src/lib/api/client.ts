@@ -42,6 +42,7 @@ import type {
   NodeMetrics,
   OperationRecord,
   OperationStatus,
+  PciDevice,
   Pool,
   QuarantineDecisionRequest,
   ReconciliationQuarantineRecord,
@@ -360,6 +361,14 @@ export class DaygleClient {
   }
   bindGpu(pciAddress: string, req: BindGpuRequest): Promise<OperationRecord> {
     return this.request("POST", `/gpus/${encodeURIComponent(pciAddress)}/bind`, req);
+  }
+
+  // --- pci ------------------------------------------------------------------
+  listPciDevices(): Promise<PciDevice[]> {
+    return this.request("GET", "/pci-devices");
+  }
+  bindPciDevice(pciAddress: string, req: BindGpuRequest): Promise<GpuDevice> {
+    return this.request("POST", `/pci-devices/${encodeURIComponent(pciAddress)}/bind`, req);
   }
 
   // --- usb ------------------------------------------------------------------
