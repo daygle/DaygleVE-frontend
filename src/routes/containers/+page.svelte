@@ -2,7 +2,7 @@
   import { client } from "$lib/api/session";
   import { ApiRequestError, operationFailureMessage } from "$lib/api";
   import StateBadge from "$components/StateBadge.svelte";
-  import type { LxcSummary, LxcPowerAction, Bridge, CreateLxcRequest } from "@daygleve/schema";
+  import type { LxcSummary, LxcPowerAction, Bridge, CreateLxcRequest, LxcMount } from "@daygleve/schema";
 
   let containers = $state<LxcSummary[]>([]);
   let error = $state<string | null>(null);
@@ -35,6 +35,14 @@
   let unprivileged = $state(true);
   let description = $state("");
   let startAfter = $state(true);
+  let mounts = $state<LxcMount[]>([]);
+
+  function addMount() {
+    mounts = [...mounts, { source: "", destination: "", read_only: true }];
+  }
+  function removeMount(i: number) {
+    mounts = mounts.filter((_, idx) => idx !== i);
+  }
 
   async function load() {
     loading = true;
@@ -94,6 +102,9 @@
       memory_mib: memoryMib,
       rootfs_size_gib: rootfsGib,
       networks: bridge ? [{ bridge }] : [],
+      mounts: mounts
+        .map((m) => ({ ...m, source: m.source.trim(), destination: m.destination.trim() }))
+        .filter((m) => m.source && m.destination),
       unprivileged,
       description: description.trim() || undefined,
       start: startAfter,
@@ -126,6 +137,7 @@
     unprivileged = true;
     description = "";
     startAfter = true;
+    mounts = [];
   }
 
   $effect(() => {
@@ -245,6 +257,43 @@
           node's default pool.
         </p>
 
+        <div class="mounts-head">
+          <h3>Bind mounts</h3>
+          <button type="button" class="add" onclick={addMount}>+ Add mount</button>
+        </div>
+        {#if mounts.length === 0}
+          <p class="hint">
+            Expose a host directory inside the container. Both paths are absolute;
+            the host directory appears at the container path. Bind mounts are a
+            privileged capability — a read-write mount lets the container modify
+            host files.
+          </p>
+        {/if}
+        {#each mounts as m, i (i)}
+          <div class="mount-row">
+            <input
+              class="mount-input"
+              bind:value={m.source}
+              placeholder="/srv/data (host)"
+              autocomplete="off"
+              aria-label="Host source path"
+            />
+            <span class="arrow">→</span>
+            <input
+              class="mount-input"
+              bind:value={m.destination}
+              placeholder="/data (container)"
+              autocomplete="off"
+              aria-label="Container destination path"
+            />
+            <label class="ro-check" title="Mount read-only">
+              <input type="checkbox" bind:checked={m.read_only} />
+              <span>ro</span>
+            </label>
+            <button type="button" class="remove" onclick={() => removeMount(i)} aria-label="Remove mount">✕</button>
+          </div>
+        {/each}
+
         {#if formError}<p class="error">{formError}</p>{/if}
 
         <div class="dialog-actions">
@@ -263,6 +312,62 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+  }
+  .mounts-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 1rem;
+  }
+  .mounts-head h3 {
+    margin: 0;
+  }
+  .add {
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 0.2rem 0.5rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+  }
+  .add:hover {
+    color: var(--fg);
+    border-color: var(--accent);
+  }
+  .mount-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.5rem;
+  }
+  .mount-input {
+    flex: 1;
+    min-width: 0;
+  }
+  .mount-row .arrow {
+    color: var(--muted);
+  }
+  .ro-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .remove {
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 6px;
+    padding: 0.2rem 0.45rem;
+    line-height: 1;
+  }
+  .remove:hover {
+    color: var(--fg);
+    border-color: var(--accent);
   }
   .actions button {
     cursor: pointer;
