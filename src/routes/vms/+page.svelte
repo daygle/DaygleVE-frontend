@@ -38,6 +38,9 @@
   let nicModel = $state<NicModel>("virtio");
   let cdrom = $state(""); // "" = no install media
   let startAfter = $state(true);
+  let asTemplate = $state(false); // create as a clone-only template
+  let autostart = $state(false); // start on host boot
+  let startupOrder = $state<number | null>(null); // lower starts first
 
   async function load() {
     loading = true;
@@ -117,7 +120,11 @@
       ],
       nics: bridge ? [{ bridge, model: nicModel }] : [],
       cdrom: cdrom || undefined,
-      start: startAfter,
+      // A template is never powered on, so it can't also be started or autostarted.
+      start: asTemplate ? false : startAfter,
+      template: asTemplate,
+      autostart: asTemplate ? false : autostart,
+      startup_order: !asTemplate && autostart && startupOrder != null ? startupOrder : undefined,
     };
 
     creating = true;
@@ -148,6 +155,9 @@
     nicModel = "virtio";
     cdrom = "";
     startAfter = true;
+    asTemplate = false;
+    autostart = false;
+    startupOrder = null;
   }
 
   function fmtSize(bytes: number): string {
@@ -188,12 +198,18 @@
         <tbody>
           {#each vms as vm (vm.id)}
             <tr>
-              <td><a href={`/vms/${vm.id}`}>{vm.name}</a></td>
+              <td>
+                <a href={`/vms/${vm.id}`}>{vm.name}</a>
+                {#if vm.template}<span class="tag" title="Clone-only template">Template</span>{/if}
+                {#if vm.autostart && !vm.template}<span class="tag muted-tag" title="Starts on host boot">Autostart</span>{/if}
+              </td>
               <td><StateBadge state={vm.state} /></td>
               <td>{vm.vcpus}</td>
               <td>{(vm.memory_mib / 1024).toFixed(1)} GiB</td>
               <td class="actions">
-                {#if vm.state === "running"}
+                {#if vm.template}
+                  <span class="muted">—</span>
+                {:else if vm.state === "running"}
                   <button onclick={() => power(vm.id, "shutdown")}>Shutdown</button>
                 {:else}
                   <button onclick={() => power(vm.id, "start")}>Start</button>
@@ -312,10 +328,32 @@
           </p>
         {/if}
 
+        <h3>Boot &amp; provisioning</h3>
         <label class="check">
-          <input type="checkbox" bind:checked={startAfter} />
-          <span>Start immediately after creation</span>
+          <input type="checkbox" bind:checked={asTemplate} />
+          <span>Create as a template (clone-only golden image; cannot be powered on)</span>
         </label>
+        {#if !asTemplate}
+          <label class="check">
+            <input type="checkbox" bind:checked={startAfter} />
+            <span>Start immediately after creation</span>
+          </label>
+          <label class="check">
+            <input type="checkbox" bind:checked={autostart} />
+            <span>Start automatically on host boot</span>
+          </label>
+          {#if autostart}
+            <label class="field">
+              <span>Startup order <span class="muted">(optional; lower starts first)</span></span>
+              <input type="number" min="0" bind:value={startupOrder} placeholder="e.g. 10" />
+            </label>
+          {/if}
+        {:else}
+          <p class="hint">
+            A template is never started. Create it, then use <em>New VM → clone</em> from
+            this template to spin up runnable copies.
+          </p>
+        {/if}
 
         {#if formError}<p class="error">{formError}</p>{/if}
 
@@ -420,5 +458,22 @@
     justify-content: flex-end;
     gap: 0.6rem;
     margin-top: 1.5rem;
+  }
+  .tag {
+    display: inline-block;
+    margin-left: 0.5rem;
+    padding: 0.05rem 0.4rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-radius: 4px;
+    background: var(--brand-cyan, #2b6cb0);
+    color: #fff;
+    vertical-align: middle;
+  }
+  .tag.muted-tag {
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--muted);
   }
 </style>
