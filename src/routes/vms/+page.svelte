@@ -12,6 +12,7 @@
     NicModel,
     Firmware,
     CreateVmRequest,
+    UsbDevice,
   } from "@daygleve/schema";
 
   let vms = $state<VmSummary[]>([]);
@@ -23,6 +24,9 @@
   let pools = $state<Pool[]>([]);
   let bridges = $state<Bridge[]>([]);
   let isos = $state<IsoImage[]>([]);
+  let usbDevices = $state<UsbDevice[]>([]);
+  // Selected USB devices, keyed "vendor:product".
+  let selectedUsb = $state<string[]>([]);
   let creating = $state(false);
   let formError = $state<string | null>(null);
 
@@ -68,13 +72,19 @@
     formError = null;
     const c = client();
     // Populate dropdowns; failures are non-fatal (the fields degrade to empty).
-    const [p, b, i] = await Promise.allSettled([c.listPools(), c.listBridges(), c.listIsos()]);
+    const [p, b, i, u] = await Promise.allSettled([
+      c.listPools(),
+      c.listBridges(),
+      c.listIsos(),
+      c.listUsbDevices(),
+    ]);
     if (p.status === "fulfilled") {
       pools = p.value;
       if (!pool && pools.length) pool = pools[0].name;
     }
     if (b.status === "fulfilled") bridges = b.value;
     if (i.status === "fulfilled") isos = i.value;
+    if (u.status === "fulfilled") usbDevices = u.value;
   }
 
   function closeCreate() {
@@ -119,6 +129,10 @@
         },
       ],
       nics: bridge ? [{ bridge, model: nicModel }] : [],
+      usb_devices: selectedUsb.map((key) => {
+        const [vendor_id, product_id] = key.split(":");
+        return { vendor_id, product_id };
+      }),
       cdrom: cdrom || undefined,
       // A template is never powered on, so it can't also be started or autostarted.
       start: asTemplate ? false : startAfter,
@@ -158,6 +172,7 @@
     asTemplate = false;
     autostart = false;
     startupOrder = null;
+    selectedUsb = [];
   }
 
   function fmtSize(bytes: number): string {
@@ -328,6 +343,25 @@
           </p>
         {/if}
 
+        <h3>USB passthrough</h3>
+        {#if usbDevices.length === 0}
+          <p class="hint">No host USB devices detected (or none on this dev host).</p>
+        {:else}
+          <div class="usb-list">
+            {#each usbDevices as dev (dev.vendor_id + ":" + dev.product_id)}
+              {@const key = dev.vendor_id + ":" + dev.product_id}
+              <label class="check">
+                <input type="checkbox" value={key} bind:group={selectedUsb} />
+                <span>{dev.description} <span class="muted">({key})</span></span>
+              </label>
+            {/each}
+          </div>
+          <p class="hint">
+            Passed-through devices are matched by USB vendor:product, so a device stays
+            attached across replug. The guest gets exclusive access while running.
+          </p>
+        {/if}
+
         <h3>Boot &amp; provisioning</h3>
         <label class="check">
           <input type="checkbox" bind:checked={asTemplate} />
@@ -458,6 +492,12 @@
     justify-content: flex-end;
     gap: 0.6rem;
     margin-top: 1.5rem;
+  }
+  .usb-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-top: 0.4rem;
   }
   .tag {
     display: inline-block;

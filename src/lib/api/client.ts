@@ -51,6 +51,7 @@ import type {
   UpdateLxcRequest,
   UpdateUserRequest,
   UpdateVmRequest,
+  UsbDevice,
   User,
   Vlan,
   Vm,
@@ -359,6 +360,11 @@ export class DaygleClient {
   }
   bindGpu(pciAddress: string, req: BindGpuRequest): Promise<OperationRecord> {
     return this.request("POST", `/gpus/${encodeURIComponent(pciAddress)}/bind`, req);
+  }
+
+  // --- usb ------------------------------------------------------------------
+  listUsbDevices(): Promise<UsbDevice[]> {
+    return this.request("GET", "/usb-devices");
   }
 
   // --- metrics --------------------------------------------------------------
