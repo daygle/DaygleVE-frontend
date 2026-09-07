@@ -300,6 +300,10 @@ export class DaygleClient {
   vmConsole(id: string): Promise<ConsoleTicket> {
     return this.request("POST", `/vms/${id}/console`);
   }
+  /** Mint a one-time ticket for the VM's serial (text) console. */
+  vmSerialConsole(id: string): Promise<ConsoleTicket> {
+    return this.request("POST", `/vms/${id}/serial-console`);
+  }
   listVmSnapshots(id: string): Promise<VmSnapshot[]> {
     return this.request("GET", `/vms/${id}/snapshots`);
   }

@@ -5,6 +5,7 @@
   import { client } from "$lib/api/session";
   import { ApiRequestError } from "$lib/api";
   import StateBadge from "$components/StateBadge.svelte";
+  import "@xterm/xterm/css/xterm.css";
   import type {
     Vm,
     IsoImage,
@@ -65,6 +66,14 @@
   let consoleStatus = $state("");
   // The RFB client is browser-only and untyped; keep it out of reactive state.
   let rfb: { disconnect: () => void } | null = null;
+
+  // Serial (xterm.js) console state. The terminal and socket are browser-only,
+  // so they live outside reactive state.
+  let serialEl = $state<HTMLDivElement>();
+  let showSerial = $state(false);
+  let serialStatus = $state("");
+  let serialTerm: { dispose: () => void } | null = null;
+  let serialWs: WebSocket | null = null;
 
   const id = $derived($page.params.id ?? "");
 
@@ -386,6 +395,71 @@
   // tick()/import) also aborts via the showConsole guard, not just an existing
   // connection.
   onDestroy(closeConsole);
+
+  async function openSerialConsole() {
+    error = null;
+    try {
+      const ticket = await client().vmSerialConsole(id);
+      const url = client().consoleWebsocketUrl(ticket.websocket_path);
+      showSerial = true;
+      serialStatus = "connecting";
+      // Mount xterm only after the container is in the DOM; import it
+      // dynamically so it never runs during SSR.
+      await tick();
+      if (!showSerial || !serialEl) return;
+      const [{ Terminal }, { FitAddon }] = await Promise.all([
+        import("@xterm/xterm"),
+        import("@xterm/addon-fit"),
+      ]);
+      if (!showSerial || !serialEl) return;
+      const term = new Terminal({ cursorBlink: true, fontSize: 13, scrollback: 5000 });
+      const fit = new FitAddon();
+      term.loadAddon(fit);
+      term.open(serialEl);
+      fit.fit();
+      const ws = new WebSocket(url);
+      ws.binaryType = "arraybuffer";
+      const encoder = new TextEncoder();
+      ws.onopen = () => {
+        serialStatus = "connected";
+        term.focus();
+      };
+      ws.onmessage = (ev: MessageEvent) => {
+        if (ev.data instanceof ArrayBuffer) term.write(new Uint8Array(ev.data));
+        else term.write(ev.data as string);
+      };
+      ws.onclose = () => (serialStatus = "disconnected");
+      ws.onerror = () => (serialStatus = "connection lost");
+      // Forward keystrokes to the guest as raw bytes.
+      term.onData((data: string) => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(encoder.encode(data));
+      });
+      serialTerm = term;
+      serialWs = ws;
+    } catch (e) {
+      error = e instanceof ApiRequestError ? e.body.message : String(e);
+      showSerial = false;
+    }
+  }
+
+  function closeSerialConsole() {
+    try {
+      serialWs?.close();
+    } catch {
+      // already gone
+    }
+    try {
+      serialTerm?.dispose();
+    } catch {
+      // already disposed
+    }
+    serialWs = null;
+    serialTerm = null;
+    showSerial = false;
+    serialStatus = "";
+  }
+
+  onDestroy(closeSerialConsole);
 </script>
 
 <div class="container">
@@ -473,6 +547,27 @@
           <p class="muted">Live VNC · noVNC over a one-time ticket</p>
         {:else}
           <p class="muted">Opens a live noVNC session to the VM's display.</p>
+        {/if}
+      </div>
+
+      <div class="card console-card">
+        <div class="console-head">
+          <h3>Serial console</h3>
+          {#if showSerial}
+            <span class="muted">{serialStatus}</span>
+            <button onclick={closeSerialConsole}>Close</button>
+          {:else}
+            <button class="primary" onclick={openSerialConsole}>Open serial console</button>
+          {/if}
+        </div>
+        {#if showSerial}
+          <div class="serial-view" bind:this={serialEl}></div>
+          <p class="muted">Live text console · xterm.js over a one-time ticket</p>
+        {:else}
+          <p class="muted">
+            Opens the VM's serial console (ttyS0) for headless install and boot
+            troubleshooting. The guest must expose a serial getty.
+          </p>
         {/if}
       </div>
     </div>
@@ -808,6 +903,16 @@
     border: 1px solid var(--border);
     border-radius: 6px;
     overflow: hidden;
+  }
+  .serial-view {
+    margin-top: 0.75rem;
+    width: 100%;
+    height: 420px;
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    padding: 4px;
   }
   .media-current {
     display: flex;
