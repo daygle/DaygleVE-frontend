@@ -1,12 +1,26 @@
 <script lang="ts">
   import { client } from "$lib/api/session";
   import { ApiRequestError, operationFailureMessage } from "$lib/api";
-  import type { Pool, Dataset, NetworkShare, ShareType, CreateShareRequest } from "@daygleve/schema";
+  import type {
+    Pool,
+    Dataset,
+    NetworkShare,
+    ShareType,
+    CreateShareRequest,
+    StorageFile,
+  } from "@daygleve/schema";
 
   let pools = $state<Pool[]>([]);
   let datasets = $state<Dataset[]>([]);
   let shares = $state<NetworkShare[]>([]);
   let error = $state<string | null>(null);
+
+  // --- media library (uploaded ISOs + CT templates) ---
+  let libIsos = $state<StorageFile[]>([]);
+  let ctTemplates = $state<StorageFile[]>([]);
+  let uploadingIso = $state(false);
+  let uploadingTemplate = $state(false);
+  let libraryError = $state<string | null>(null);
 
   // --- add-share form ---
   let showAdd = $state(false);
@@ -36,6 +50,15 @@
     }
   }
 
+  async function loadLibrary() {
+    try {
+      const c = client();
+      [libIsos, ctTemplates] = await Promise.all([c.listLibraryIsos(), c.listCtTemplates()]);
+    } catch (e) {
+      libraryError = e instanceof ApiRequestError ? e.body.message : String(e);
+    }
+  }
+
   $effect(() => {
     const c = client();
     Promise.all([c.listPools(), c.listDatasets()])
@@ -45,7 +68,41 @@
       })
       .catch((e) => (error = e instanceof ApiRequestError ? e.body.message : String(e)));
     loadShares();
+    loadLibrary();
   });
+
+  // Upload the picked file under its own name, then refresh the list. The input
+  // is reset so re-picking the same file fires `change` again.
+  async function uploadFile(kind: "iso" | "template", input: HTMLInputElement) {
+    const file = input.files?.[0];
+    if (!file) return;
+    libraryError = null;
+    if (kind === "iso") uploadingIso = true;
+    else uploadingTemplate = true;
+    try {
+      if (kind === "iso") await client().uploadIso(file.name, file);
+      else await client().uploadCtTemplate(file.name, file);
+      await loadLibrary();
+    } catch (e) {
+      libraryError = e instanceof ApiRequestError ? e.body.message : String(e);
+    } finally {
+      uploadingIso = false;
+      uploadingTemplate = false;
+      input.value = "";
+    }
+  }
+
+  async function removeLibraryFile(kind: "iso" | "template", file: StorageFile) {
+    if (!confirm(`Delete "${file.name}"? This removes the file from the node.`)) return;
+    libraryError = null;
+    try {
+      if (kind === "iso") await client().deleteIso(file.name);
+      else await client().deleteCtTemplate(file.name);
+      await loadLibrary();
+    } catch (e) {
+      libraryError = e instanceof ApiRequestError ? e.body.message : String(e);
+    }
+  }
 
   function resetForm() {
     name = "";
@@ -165,6 +222,80 @@
     {/if}
   </div>
 
+  <h2>Media library</h2>
+  <p class="muted lede">
+    Upload installer ISOs (offered as VM install media) and LXC container-template tarballs
+    (selectable when you create a container). Files are stored on the node's local storage.
+  </p>
+  {#if libraryError}<p class="error">{libraryError}</p>{/if}
+  <div class="grid">
+    <div class="card">
+      <div class="section-head compact">
+        <h3>Install ISOs</h3>
+        <label class="upload-btn">
+          {uploadingIso ? "Uploading…" : "Upload ISO"}
+          <input
+            type="file"
+            accept=".iso"
+            disabled={uploadingIso}
+            onchange={(e) => uploadFile("iso", e.currentTarget)}
+          />
+        </label>
+      </div>
+      {#if libIsos.length === 0}
+        <p class="muted">No uploaded ISOs.</p>
+      {:else}
+        <table>
+          <thead><tr><th>Name</th><th>Size</th><th></th></tr></thead>
+          <tbody>
+            {#each libIsos as iso (iso.name)}
+              <tr>
+                <td class="mono">{iso.name}</td>
+                <td>{gib(iso.size_bytes)} GiB</td>
+                <td class="row-actions">
+                  <button onclick={() => removeLibraryFile("iso", iso)}>Delete</button>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      {/if}
+    </div>
+
+    <div class="card">
+      <div class="section-head compact">
+        <h3>CT templates</h3>
+        <label class="upload-btn">
+          {uploadingTemplate ? "Uploading…" : "Upload template"}
+          <input
+            type="file"
+            accept=".tar,.tar.gz,.tgz,.tar.xz,.txz,.tar.zst,.tar.bz2"
+            disabled={uploadingTemplate}
+            onchange={(e) => uploadFile("template", e.currentTarget)}
+          />
+        </label>
+      </div>
+      {#if ctTemplates.length === 0}
+        <p class="muted">No uploaded container templates.</p>
+      {:else}
+        <table>
+          <thead><tr><th>Name</th><th>Size</th><th></th></tr></thead>
+          <tbody>
+            {#each ctTemplates as tmpl (tmpl.name)}
+              <tr>
+                <td class="mono">{tmpl.name}</td>
+                <td>{gib(tmpl.size_bytes)} GiB</td>
+                <td class="row-actions">
+                  <button onclick={() => removeLibraryFile("template", tmpl)}>Delete</button>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      {/if}
+    </div>
+  </div>
+
   <div class="section-head">
     <h2>Network shares</h2>
     <button class="primary" onclick={toggleAdd}>
@@ -276,6 +407,21 @@
     align-items: center;
     justify-content: space-between;
     margin-top: 1.5rem;
+  }
+  .section-head.compact {
+    margin-top: 0;
+  }
+  .upload-btn {
+    cursor: pointer;
+    background: var(--accent);
+    color: #fff;
+    padding: 0.35rem 0.7rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+  .upload-btn input {
+    display: none;
   }
   .lede {
     margin: 0.2rem 0 0.8rem;
