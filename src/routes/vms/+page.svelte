@@ -13,6 +13,7 @@
     Firmware,
     CreateVmRequest,
     UsbDevice,
+    PciDevice,
   } from "@daygleve/schema";
 
   let vms = $state<VmSummary[]>([]);
@@ -27,6 +28,10 @@
   let usbDevices = $state<UsbDevice[]>([]);
   // Selected USB devices, keyed "vendor:product".
   let selectedUsb = $state<string[]>([]);
+  let pciDevices = $state<PciDevice[]>([]);
+  // Selected PCI devices, keyed by pci_address.
+  let selectedPci = $state<string[]>([]);
+  let bindingPci = $state<string | null>(null);
   let creating = $state(false);
   let formError = $state<string | null>(null);
 
@@ -72,11 +77,12 @@
     formError = null;
     const c = client();
     // Populate dropdowns; failures are non-fatal (the fields degrade to empty).
-    const [p, b, i, u] = await Promise.allSettled([
+    const [p, b, i, u, pci] = await Promise.allSettled([
       c.listPools(),
       c.listBridges(),
       c.listIsos(),
       c.listUsbDevices(),
+      c.listPciDevices(),
     ]);
     if (p.status === "fulfilled") {
       pools = p.value;
@@ -85,6 +91,22 @@
     if (b.status === "fulfilled") bridges = b.value;
     if (i.status === "fulfilled") isos = i.value;
     if (u.status === "fulfilled") usbDevices = u.value;
+    if (pci.status === "fulfilled") pciDevices = pci.value;
+  }
+
+  // Bind a PCI device to vfio-pci so it becomes available for passthrough,
+  // then refresh the inventory to reflect its new availability.
+  async function bindPci(pciAddress: string) {
+    bindingPci = pciAddress;
+    formError = null;
+    try {
+      await client().bindPciDevice(pciAddress, { force: false });
+      pciDevices = await client().listPciDevices();
+    } catch (e) {
+      formError = e instanceof ApiRequestError ? e.body.message : String(e);
+    } finally {
+      bindingPci = null;
+    }
   }
 
   function closeCreate() {
@@ -133,6 +155,7 @@
         const [vendor_id, product_id] = key.split(":");
         return { vendor_id, product_id };
       }),
+      pci_devices: selectedPci.map((pci_address) => ({ pci_address })),
       cdrom: cdrom || undefined,
       // A template is never powered on, so it can't also be started or autostarted.
       start: asTemplate ? false : startAfter,
@@ -173,6 +196,7 @@
     autostart = false;
     startupOrder = null;
     selectedUsb = [];
+    selectedPci = [];
   }
 
   function fmtSize(bytes: number): string {
@@ -362,6 +386,47 @@
           </p>
         {/if}
 
+        <h3>PCI passthrough</h3>
+        {#if pciDevices.length === 0}
+          <p class="hint">No attachable PCI devices detected (or none on this dev host).</p>
+        {:else}
+          <div class="usb-list">
+            {#each pciDevices as dev (dev.pci_address)}
+              <div class="pci-row">
+                <label class="check">
+                  <input
+                    type="checkbox"
+                    value={dev.pci_address}
+                    bind:group={selectedPci}
+                    disabled={!dev.available}
+                  />
+                  <span>
+                    <strong>{dev.class}</strong> · {dev.vendor} · {dev.pci_id}
+                    <span class="muted">({dev.pci_address}, IOMMU {dev.iommu_group})</span>
+                  </span>
+                </label>
+                {#if dev.available}
+                  <span class="tag muted-tag">vfio-bound</span>
+                {:else}
+                  <button
+                    type="button"
+                    class="add"
+                    onclick={() => bindPci(dev.pci_address)}
+                    disabled={bindingPci === dev.pci_address}
+                  >
+                    {bindingPci === dev.pci_address ? "Binding…" : "Bind for passthrough"}
+                  </button>
+                {/if}
+              </div>
+            {/each}
+          </div>
+          <p class="hint">
+            A device must be bound to <code>vfio-pci</code> before it can be attached.
+            All functions in an IOMMU group are passed through together. Display
+            adapters are managed on the GPU passthrough flow, not here.
+          </p>
+        {/if}
+
         <h3>Boot &amp; provisioning</h3>
         <label class="check">
           <input type="checkbox" bind:checked={asTemplate} />
@@ -498,6 +563,16 @@
     flex-direction: column;
     gap: 0.35rem;
     margin-top: 0.4rem;
+  }
+  .pci-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+  }
+  .pci-row .check {
+    flex: 1;
+    min-width: 0;
   }
   .tag {
     display: inline-block;
