@@ -56,6 +56,9 @@ import type {
   SnapshotSchedule,
   CreateSnapshotScheduleRequest,
   UpdateSnapshotScheduleRequest,
+  NotificationChannel,
+  CreateNotificationChannelRequest,
+  UpdateNotificationChannelRequest,
   QuarantineDecisionRequest,
   ReconciliationQuarantineRecord,
   RestoreBackupRequest,
@@ -440,6 +443,26 @@ export class DaygleClient {
   }
   deleteSnapshotSchedule(id: string): Promise<void> {
     return this.request("DELETE", `/snapshot-schedules/${id}`);
+  }
+
+  // --- notifications --------------------------------------------------------
+  listNotificationChannels(): Promise<NotificationChannel[]> {
+    return this.request("GET", "/notifications");
+  }
+  createNotificationChannel(req: CreateNotificationChannelRequest): Promise<NotificationChannel> {
+    return this.request("POST", "/notifications", req);
+  }
+  updateNotificationChannel(
+    id: string,
+    req: UpdateNotificationChannelRequest,
+  ): Promise<NotificationChannel> {
+    return this.request("PATCH", `/notifications/${id}`, req);
+  }
+  deleteNotificationChannel(id: string): Promise<void> {
+    return this.request("DELETE", `/notifications/${id}`);
+  }
+  testNotificationChannel(id: string): Promise<void> {
+    return this.request("POST", `/notifications/${id}/test`);
   }
 
   // --- storage --------------------------------------------------------------
