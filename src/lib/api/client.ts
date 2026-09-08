@@ -63,6 +63,8 @@ import type {
   NotificationChannel,
   CreateNotificationChannelRequest,
   UpdateNotificationChannelRequest,
+  ImportDiskImageRequest,
+  ImportDiskImageResponse,
   QuarantineDecisionRequest,
   ReconciliationQuarantineRecord,
   RestoreBackupRequest,
@@ -601,6 +603,21 @@ export class DaygleClient {
   }
   deleteCtTemplate(name: string): Promise<void> {
     return this.request("DELETE", `/storage/ct-templates/${encodeURIComponent(name)}`);
+  }
+  /** Uploaded VM disk images available for import into a zvol. */
+  listDiskImages(): Promise<StorageFile[]> {
+    return this.request("GET", "/storage/disk-images");
+  }
+  /** Stream a file into the disk-image library under `name`. */
+  uploadDiskImage(name: string, file: Blob): Promise<StorageFile> {
+    return this.upload(`/storage/disk-images/${encodeURIComponent(name)}`, file);
+  }
+  deleteDiskImage(name: string): Promise<void> {
+    return this.request("DELETE", `/storage/disk-images/${encodeURIComponent(name)}`);
+  }
+  /** Import an uploaded disk image into a new zvol usable as a VM disk. */
+  importDiskImage(req: ImportDiskImageRequest): Promise<ImportDiskImageResponse> {
+    return this.request("POST", "/storage/disk-images/import", req);
   }
 
   // --- network --------------------------------------------------------------
