@@ -4,6 +4,7 @@
   import { goto } from "$app/navigation";
   import { client } from "$lib/api/session";
   import { ApiRequestError } from "$lib/api";
+  import { parseTags, formatTags } from "$lib/tags";
   import StateBadge from "$components/StateBadge.svelte";
   import "@xterm/xterm/css/xterm.css";
   import type {
@@ -34,6 +35,7 @@
   let eFirmware = $state<Firmware>("uefi");
   let eDisks = $state<VmDisk[]>([]);
   let eNics = $state<VmNic[]>([]);
+  let eTags = $state("");
 
   // Install-media (CD-ROM) state.
   let isos = $state<IsoImage[]>([]);
@@ -230,6 +232,7 @@
     // Clone so edits don't mutate the displayed VM until saved.
     eDisks = vm.disks.map((d) => ({ ...d }));
     eNics = vm.nics.map((n) => ({ ...n }));
+    eTags = formatTags(vm.tags);
     showEdit = true;
     // Clear first so a failed fetch degrades to empty rather than keeping stale
     // pools/bridges from a previous open (which addDisk/addNic would misuse).
@@ -281,6 +284,7 @@
       firmware: eFirmware,
       disks: eDisks,
       nics: eNics,
+      tags: parseTags(eTags),
       eject_cdrom: false,
     };
     editBusy = true;
@@ -492,6 +496,12 @@
       <button class="edit-btn" onclick={openClone}>Clone</button>
     </div>
 
+    {#if vm.tags && vm.tags.length}
+      <div class="tags">
+        {#each vm.tags as tag (tag)}<span class="tag">{tag}</span>{/each}
+      </div>
+    {/if}
+
     <div class="grid">
       <div class="card">
         <h3>Compute</h3>
@@ -680,6 +690,7 @@
           </label>
           <label class="field"><span>vCPUs</span><input type="number" min="1" bind:value={eVcpus} /></label>
           <label class="field"><span>Memory (MiB)</span><input type="number" min="1" step="128" bind:value={eMemory} /></label>
+          <label class="field"><span>Tags</span><input bind:value={eTags} placeholder="prod, web" autocomplete="off" /></label>
         </div>
 
         <div class="sub-head"><h3>Disks</h3><button type="button" class="add" onclick={addDisk}>+ Add</button></div>
@@ -769,6 +780,20 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
+  }
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin: -0.4rem 0 0.6rem;
+  }
+  .tag {
+    font-size: 0.72rem;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    background: var(--panel-2, rgba(255, 255, 255, 0.06));
+    border: 1px solid var(--border);
+    color: var(--muted);
   }
   .edit-btn {
     cursor: pointer;
