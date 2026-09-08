@@ -15,12 +15,22 @@
   let shares = $state<NetworkShare[]>([]);
   let error = $state<string | null>(null);
 
-  // --- media library (uploaded ISOs + CT templates) ---
+  // --- media library (uploaded ISOs + CT templates + disk images) ---
   let libIsos = $state<StorageFile[]>([]);
   let ctTemplates = $state<StorageFile[]>([]);
+  let diskImages = $state<StorageFile[]>([]);
   let uploadingIso = $state(false);
   let uploadingTemplate = $state(false);
+  let uploadingDiskImage = $state(false);
   let libraryError = $state<string | null>(null);
+
+  // --- import a disk image into a zvol ---
+  let importImage = $state<StorageFile | null>(null);
+  let importDataset = $state("");
+  let importSize = $state("");
+  let importing = $state(false);
+  let importError = $state<string | null>(null);
+  let importResult = $state<string | null>(null);
 
   // --- add-share form ---
   let showAdd = $state(false);
@@ -53,7 +63,11 @@
   async function loadLibrary() {
     try {
       const c = client();
-      [libIsos, ctTemplates] = await Promise.all([c.listLibraryIsos(), c.listCtTemplates()]);
+      [libIsos, ctTemplates, diskImages] = await Promise.all([
+        c.listLibraryIsos(),
+        c.listCtTemplates(),
+        c.listDiskImages(),
+      ]);
     } catch (e) {
       libraryError = e instanceof ApiRequestError ? e.body.message : String(e);
     }
@@ -73,34 +87,80 @@
 
   // Upload the picked file under its own name, then refresh the list. The input
   // is reset so re-picking the same file fires `change` again.
-  async function uploadFile(kind: "iso" | "template", input: HTMLInputElement) {
+  async function uploadFile(kind: "iso" | "template" | "diskimage", input: HTMLInputElement) {
     const file = input.files?.[0];
     if (!file) return;
     libraryError = null;
     if (kind === "iso") uploadingIso = true;
-    else uploadingTemplate = true;
+    else if (kind === "template") uploadingTemplate = true;
+    else uploadingDiskImage = true;
     try {
       if (kind === "iso") await client().uploadIso(file.name, file);
-      else await client().uploadCtTemplate(file.name, file);
+      else if (kind === "template") await client().uploadCtTemplate(file.name, file);
+      else await client().uploadDiskImage(file.name, file);
       await loadLibrary();
     } catch (e) {
       libraryError = e instanceof ApiRequestError ? e.body.message : String(e);
     } finally {
       uploadingIso = false;
       uploadingTemplate = false;
+      uploadingDiskImage = false;
       input.value = "";
     }
   }
 
-  async function removeLibraryFile(kind: "iso" | "template", file: StorageFile) {
+  async function removeLibraryFile(kind: "iso" | "template" | "diskimage", file: StorageFile) {
     if (!confirm(`Delete "${file.name}"? This removes the file from the node.`)) return;
     libraryError = null;
     try {
       if (kind === "iso") await client().deleteIso(file.name);
-      else await client().deleteCtTemplate(file.name);
+      else if (kind === "template") await client().deleteCtTemplate(file.name);
+      else await client().deleteDiskImage(file.name);
       await loadLibrary();
     } catch (e) {
       libraryError = e instanceof ApiRequestError ? e.body.message : String(e);
+    }
+  }
+
+  function openImport(file: StorageFile) {
+    importImage = file;
+    importDataset = "";
+    importSize = "";
+    importError = null;
+    importResult = null;
+  }
+
+  // Import the selected disk image into a new zvol. An empty size auto-detects
+  // the image's virtual size; a given size must be a whole number of GiB.
+  async function runImport(e: SubmitEvent) {
+    e.preventDefault();
+    if (!importImage) return;
+    const dataset = importDataset.trim();
+    if (!dataset) {
+      importError = "Enter a target dataset for the new zvol.";
+      return;
+    }
+    let size_gib: number | undefined;
+    const rawSize = importSize.trim();
+    if (rawSize) {
+      const n = Number(rawSize);
+      if (!Number.isInteger(n) || n < 1) {
+        importError = "Size must be a whole number of GiB, or blank to auto-detect.";
+        return;
+      }
+      size_gib = n;
+    }
+    importing = true;
+    importError = null;
+    const imageName = importImage.name;
+    try {
+      const res = await client().importDiskImage({ image_name: imageName, dataset, size_gib });
+      importResult = `Imported ${imageName} into ${res.dataset} (${res.size_gib} GiB). Use this dataset as a VM disk.`;
+      importImage = null;
+    } catch (e) {
+      importError = e instanceof ApiRequestError ? e.body.message : String(e);
+    } finally {
+      importing = false;
     }
   }
 
@@ -224,9 +284,11 @@
 
   <h2>Media library</h2>
   <p class="muted lede">
-    Upload installer ISOs (offered as VM install media) and LXC container-template tarballs
-    (selectable when you create a container). Files are stored on the node's local storage.
+    Upload installer ISOs (offered as VM install media), LXC container-template tarballs
+    (selectable when you create a container), and VM disk images (importable into a zvol you can
+    attach as a VM disk). Files are stored on the node's local storage.
   </p>
+  {#if importResult}<p class="ok">{importResult}</p>{/if}
   {#if libraryError}<p class="error">{libraryError}</p>{/if}
   <div class="grid">
     <div class="card">
@@ -287,6 +349,40 @@
                 <td>{gib(tmpl.size_bytes)} GiB</td>
                 <td class="row-actions">
                   <button onclick={() => removeLibraryFile("template", tmpl)}>Delete</button>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      {/if}
+    </div>
+
+    <div class="card">
+      <div class="section-head compact">
+        <h3>Disk images</h3>
+        <label class="upload-btn">
+          {uploadingDiskImage ? "Uploading…" : "Upload image"}
+          <input
+            type="file"
+            accept=".qcow2,.vmdk,.raw,.img,.vdi,.vhd,.vhdx"
+            disabled={uploadingDiskImage}
+            onchange={(e) => uploadFile("diskimage", e.currentTarget)}
+          />
+        </label>
+      </div>
+      {#if diskImages.length === 0}
+        <p class="muted">No uploaded disk images.</p>
+      {:else}
+        <table>
+          <thead><tr><th>Name</th><th>Size</th><th></th></tr></thead>
+          <tbody>
+            {#each diskImages as img (img.name)}
+              <tr>
+                <td class="mono">{img.name}</td>
+                <td>{gib(img.size_bytes)} GiB</td>
+                <td class="row-actions">
+                  <button class="primary" onclick={() => openImport(img)}>Import</button>
+                  <button onclick={() => removeLibraryFile("diskimage", img)}>Delete</button>
                 </td>
               </tr>
             {/each}
@@ -389,6 +485,39 @@
   </div>
 </div>
 
+{#if importImage}
+  <div
+    class="overlay"
+    role="presentation"
+    onclick={(e) => e.target === e.currentTarget && !importing && (importImage = null)}
+  >
+    <div class="dialog" role="dialog" aria-modal="true" aria-label="Import disk image">
+      <h2>Import disk image</h2>
+      <p class="muted">
+        Convert <span class="mono">{importImage.name}</span> into a new ZFS zvol you can attach as a
+        VM disk. The target dataset must not already exist.
+      </p>
+      <form onsubmit={runImport}>
+        <label class="field">
+          <span>Target dataset</span>
+          <input bind:value={importDataset} autocomplete="off" placeholder="tank/vm-imported-disk0" />
+        </label>
+        <label class="field">
+          <span>Size <span class="opt">(GiB, optional — blank auto-detects the image's virtual size)</span></span>
+          <input bind:value={importSize} inputmode="numeric" autocomplete="off" placeholder="Auto" />
+        </label>
+        {#if importError}<p class="error">{importError}</p>{/if}
+        <div class="dialog-actions">
+          <button type="button" onclick={() => (importImage = null)} disabled={importing}>Cancel</button>
+          <button type="submit" class="primary" disabled={importing}>
+            {importing ? "Importing…" : "Import"}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+{/if}
+
 <style>
   .bar {
     height: 8px;
@@ -483,5 +612,46 @@
   .state-error {
     color: #f87171;
     border-color: #f8717155;
+  }
+  .ok {
+    color: #34d399;
+    font-size: 0.85rem;
+    margin: 0.2rem 0 0.8rem;
+  }
+  .row-actions .primary {
+    color: var(--fg);
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 16%, transparent);
+  }
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(4, 8, 20, 0.66);
+    backdrop-filter: blur(3px);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 6vh 1rem;
+    z-index: 50;
+  }
+  .dialog {
+    background: var(--surface, #121a30);
+    border: 1px solid var(--border-strong, var(--border));
+    border-radius: 14px;
+    padding: 1.5rem 1.6rem;
+    width: min(460px, 100%);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  }
+  .dialog h2 {
+    margin: 0 0 0.6rem;
+  }
+  .dialog .field {
+    margin-bottom: 0.8rem;
+  }
+  .dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.6rem;
+    margin-top: 1rem;
   }
 </style>
