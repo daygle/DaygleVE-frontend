@@ -10,6 +10,7 @@
     CreateLxcRequest,
     LxcMount,
     StorageFile,
+    ResourcePoolSummary,
   } from "@daygleve/schema";
 
   let containers = $state<LxcSummary[]>([]);
@@ -19,6 +20,7 @@
   // --- create form state ---
   let showCreate = $state(false);
   let bridges = $state<Bridge[]>([]);
+  let resourcePools = $state<ResourcePoolSummary[]>([]);
   let creating = $state(false);
   let formError = $state<string | null>(null);
 
@@ -48,6 +50,7 @@
   let unprivileged = $state(true);
   let description = $state("");
   let tagsInput = $state("");
+  let resourcePool = $state(""); // organizational pool ("" = none)
   let startAfter = $state(true);
   let mounts = $state<LxcMount[]>([]);
 
@@ -94,6 +97,12 @@
     } catch {
       ctTemplates = [];
     }
+    // Resource pools populate the optional pool picker.
+    try {
+      resourcePools = await client().listResourcePools();
+    } catch {
+      resourcePools = [];
+    }
   }
 
   function closeCreate() {
@@ -136,6 +145,7 @@
       unprivileged,
       description: description.trim() || undefined,
       tags: parseTags(tagsInput),
+      pool: resourcePool || undefined,
       start: startAfter,
     };
     creating = true;
@@ -168,6 +178,7 @@
     unprivileged = true;
     description = "";
     tagsInput = "";
+    resourcePool = "";
     startAfter = true;
     mounts = [];
   }
@@ -299,6 +310,16 @@
         <label class="field desc">
           <span>Tags <span class="opt">(comma-separated)</span></span>
           <input bind:value={tagsInput} placeholder="prod, web, env:staging" autocomplete="off" />
+        </label>
+
+        <label class="field desc">
+          <span>Resource pool <span class="opt">(optional)</span></span>
+          <select bind:value={resourcePool}>
+            <option value="">None</option>
+            {#each resourcePools as rp (rp.id)}
+              <option value={rp.name}>{rp.name}</option>
+            {/each}
+          </select>
         </label>
 
         <label class="check">

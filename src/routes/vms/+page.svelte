@@ -16,6 +16,7 @@
     CreateVmRequest,
     UsbDevice,
     PciDevice,
+    ResourcePoolSummary,
   } from "@daygleve/schema";
 
   let vms = $state<VmSummary[]>([]);
@@ -25,6 +26,7 @@
   // --- create form state ---
   let showCreate = $state(false);
   let pools = $state<Pool[]>([]);
+  let resourcePools = $state<ResourcePoolSummary[]>([]);
   let bridges = $state<Bridge[]>([]);
   let isos = $state<IsoImage[]>([]);
   let usbDevices = $state<UsbDevice[]>([]);
@@ -45,6 +47,7 @@
   let display = $state<DisplayProtocol>("vnc");
   let tagsInput = $state("");
   let pool = $state("");
+  let resourcePool = $state(""); // organizational pool ("" = none)
   let diskSizeGib = $state(20);
   let diskBus = $state<DiskBus>("virtio");
   let bridge = $state("");
@@ -81,12 +84,13 @@
     formError = null;
     const c = client();
     // Populate dropdowns; failures are non-fatal (the fields degrade to empty).
-    const [p, b, i, u, pci] = await Promise.allSettled([
+    const [p, b, i, u, pci, rp] = await Promise.allSettled([
       c.listPools(),
       c.listBridges(),
       c.listIsos(),
       c.listUsbDevices(),
       c.listPciDevices(),
+      c.listResourcePools(),
     ]);
     if (p.status === "fulfilled") {
       pools = p.value;
@@ -96,6 +100,7 @@
     if (i.status === "fulfilled") isos = i.value;
     if (u.status === "fulfilled") usbDevices = u.value;
     if (pci.status === "fulfilled") pciDevices = pci.value;
+    if (rp.status === "fulfilled") resourcePools = rp.value;
   }
 
   // Bind a PCI device to vfio-pci so it becomes available for passthrough,
@@ -168,6 +173,7 @@
       autostart: asTemplate ? false : autostart,
       startup_order: !asTemplate && autostart && startupOrder != null ? startupOrder : undefined,
       tags: parseTags(tagsInput),
+      pool: resourcePool || undefined,
     };
 
     creating = true;
@@ -195,6 +201,7 @@
     firmware = "uefi";
     display = "vnc";
     tagsInput = "";
+    resourcePool = "";
     diskSizeGib = 20;
     diskBus = "virtio";
     nicModel = "virtio";
@@ -305,6 +312,16 @@
           <label class="field">
             <span>Tags <span class="opt">(comma-separated)</span></span>
             <input bind:value={tagsInput} placeholder="prod, web, env:staging" autocomplete="off" />
+          </label>
+
+          <label class="field">
+            <span>Resource pool <span class="opt">(optional)</span></span>
+            <select bind:value={resourcePool}>
+              <option value="">None</option>
+              {#each resourcePools as rp (rp.id)}
+                <option value={rp.name}>{rp.name}</option>
+              {/each}
+            </select>
           </label>
 
           <label class="field">

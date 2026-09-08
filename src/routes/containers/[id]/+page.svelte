@@ -6,8 +6,15 @@
   import { ApiRequestError } from "$lib/api";
   import { parseTags, formatTags } from "$lib/tags";
   import StateBadge from "$components/StateBadge.svelte";
+  import ScheduleManager from "$components/ScheduleManager.svelte";
   import "@xterm/xterm/css/xterm.css";
-  import type { Lxc, LxcPowerAction, UpdateLxcRequest, LxcSnapshot } from "@daygleve/schema";
+  import type {
+    Lxc,
+    LxcPowerAction,
+    UpdateLxcRequest,
+    LxcSnapshot,
+    ResourcePoolSummary,
+  } from "@daygleve/schema";
 
   let ct = $state<Lxc | null>(null);
   let error = $state<string | null>(null);
@@ -33,6 +40,8 @@
   let eMemory = $state(512);
   let eDesc = $state("");
   let eTags = $state("");
+  let ePool = $state("");
+  let resourcePools = $state<ResourcePoolSummary[]>([]);
   let eNameInput = $state<HTMLInputElement>();
 
   const id = $derived($page.params.id ?? "");
@@ -132,7 +141,13 @@
     eMemory = ct.memory_mib;
     eDesc = ct.description ?? "";
     eTags = formatTags(ct.tags);
+    ePool = ct.pool ?? "";
     showEdit = true;
+    try {
+      resourcePools = await client().listResourcePools();
+    } catch {
+      resourcePools = [];
+    }
     await tick();
     eNameInput?.focus();
   }
@@ -154,6 +169,7 @@
       memory_mib: eMemory,
       description: eDesc.trim() || undefined,
       tags: parseTags(eTags),
+      pool: ePool,
     };
     editBusy = true;
     try {
@@ -257,9 +273,10 @@
       <button class="edit-btn danger" onclick={remove} disabled={busy}>Delete</button>
     </div>
 
-    {#if ct.tags && ct.tags.length}
+    {#if (ct.tags && ct.tags.length) || ct.pool}
       <div class="tags">
-        {#each ct.tags as tag (tag)}<span class="tag">{tag}</span>{/each}
+        {#if ct.pool}<a class="pool-chip" href="/pools" title="Resource pool">▤ {ct.pool}</a>{/if}
+        {#each ct.tags ?? [] as tag (tag)}<span class="tag">{tag}</span>{/each}
       </div>
     {/if}
 
@@ -348,6 +365,10 @@
         </table>
       {/if}
     </div>
+
+    <div class="card">
+      <ScheduleManager targetKind="lxc" targetId={ct.id} />
+    </div>
   {:else if !error}
     <p class="muted">Loading…</p>
   {/if}
@@ -383,6 +404,15 @@
         <label class="field desc">
           <span>Tags <span class="opt">(comma-separated)</span></span>
           <input bind:value={eTags} placeholder="prod, web, env:staging" autocomplete="off" />
+        </label>
+        <label class="field desc">
+          <span>Resource pool</span>
+          <select bind:value={ePool}>
+            <option value="">None</option>
+            {#each resourcePools as rp (rp.id)}
+              <option value={rp.name}>{rp.name}</option>
+            {/each}
+          </select>
         </label>
         {#if editError}<p class="error">{editError}</p>{/if}
         <div class="dialog-actions">
@@ -435,6 +465,18 @@
     background: var(--panel-2, rgba(255, 255, 255, 0.06));
     border: 1px solid var(--border);
     color: var(--muted);
+  }
+  .pool-chip {
+    font-size: 0.72rem;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .pool-chip:hover {
+    text-decoration: underline;
   }
   .edit-btn {
     cursor: pointer;
