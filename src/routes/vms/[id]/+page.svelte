@@ -6,6 +6,7 @@
   import { ApiRequestError } from "$lib/api";
   import { parseTags, formatTags } from "$lib/tags";
   import StateBadge from "$components/StateBadge.svelte";
+  import ScheduleManager from "$components/ScheduleManager.svelte";
   import "@xterm/xterm/css/xterm.css";
   import type {
     Vm,
@@ -678,6 +679,10 @@
         A snapshot captures all of the VM's disks at once. Rollback discards newer snapshots and
         requires the VM to be stopped.
       </p>
+    </div>
+
+    <div class="card">
+      <ScheduleManager targetKind="vm" targetId={vm.id} />
     </div>
   {:else if !error}
     <p class="muted">Loading…</p>

@@ -49,6 +49,10 @@ import type {
   ResourcePoolDetail,
   ResourcePoolSummary,
   UpdateResourcePoolRequest,
+  PowerSchedule,
+  ScheduleTarget,
+  CreatePowerScheduleRequest,
+  UpdatePowerScheduleRequest,
   QuarantineDecisionRequest,
   ReconciliationQuarantineRecord,
   RestoreBackupRequest,
@@ -394,6 +398,24 @@ export class DaygleClient {
   }
   deleteResourcePool(id: string): Promise<void> {
     return this.request("DELETE", `/pools/${id}`);
+  }
+
+  // --- power schedules ------------------------------------------------------
+  listSchedules(targetKind?: ScheduleTarget, targetId?: string): Promise<PowerSchedule[]> {
+    const q = new URLSearchParams();
+    if (targetKind) q.set("target_kind", targetKind);
+    if (targetId) q.set("target_id", targetId);
+    const qs = q.toString();
+    return this.request("GET", `/schedules${qs ? `?${qs}` : ""}`);
+  }
+  createSchedule(req: CreatePowerScheduleRequest): Promise<PowerSchedule> {
+    return this.request("POST", "/schedules", req);
+  }
+  updateSchedule(id: string, req: UpdatePowerScheduleRequest): Promise<PowerSchedule> {
+    return this.request("PATCH", `/schedules/${id}`, req);
+  }
+  deleteSchedule(id: string): Promise<void> {
+    return this.request("DELETE", `/schedules/${id}`);
   }
 
   // --- storage --------------------------------------------------------------
