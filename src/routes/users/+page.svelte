@@ -142,7 +142,7 @@
               <td>{u.username}</td>
               <td>{u.roles.join(", ")}</td>
               <td class="faint">{u.created_at.slice(0, 10)}</td>
-              <td class="faint">{u.last_login_at ? u.last_login_at.slice(0, 16).replace("T", " ") : "—"}</td>
+              <td class="faint">{u.last_login_at ? u.last_login_at.slice(0, 16).replace("T", " ") : "-"}</td>
               <td class="row-actions">
                 <button onclick={() => openEdit(u)}>Edit</button>
                 <button onclick={() => remove(u)}>Delete</button>

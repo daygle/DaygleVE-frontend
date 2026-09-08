@@ -23,7 +23,7 @@
   };
 
   function messageFor(operation: OperationRecord): string {
-    return operation.error ?? operation.message ?? "—";
+    return operation.error ?? operation.message ?? "-";
   }
 
   async function load() {
@@ -112,13 +112,13 @@
                   <span class="mono faint">{operation.id}</span>
                 </td>
                 <td>
-                  {operation.resource_type ?? "—"}
+                  {operation.resource_type ?? "-"}
                   {#if operation.resource_id}<span class="mono faint">{operation.resource_id}</span>{/if}
                 </td>
                 <td><span class="status status-{operation.status}">{statusLabel[operation.status]}</span></td>
-                <td class="faint">{operation.progress_pct != null ? `${operation.progress_pct}%` : "—"}</td>
-                <td class="faint">{operation.started_at?.slice(0, 19).replace("T", " ") ?? "—"}</td>
-                <td class="faint">{operation.finished_at?.slice(0, 19).replace("T", " ") ?? "—"}</td>
+                <td class="faint">{operation.progress_pct != null ? `${operation.progress_pct}%` : "-"}</td>
+                <td class="faint">{operation.started_at?.slice(0, 19).replace("T", " ") ?? "-"}</td>
+                <td class="faint">{operation.finished_at?.slice(0, 19).replace("T", " ") ?? "-"}</td>
                 <td class:error-detail={operation.status === "failed"}>{messageFor(operation)}</td>
               </tr>
             {/each}

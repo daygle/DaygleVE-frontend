@@ -8,6 +8,7 @@
   import StateBadge from "$components/StateBadge.svelte";
   import ScheduleManager from "$components/ScheduleManager.svelte";
   import SnapshotScheduleManager from "$components/SnapshotScheduleManager.svelte";
+  import DeviceHotplug from "$components/DeviceHotplug.svelte";
   import "@xterm/xterm/css/xterm.css";
   import type {
     Vm,
@@ -59,8 +60,8 @@
   // Snapshot state.
   let snapshots = $state<VmSnapshot[]>([]);
   // Monotonic token so only the most recent loadSnapshots() applies its result
-  // (guards against concurrent loads — initial effect plus post-mutation reloads
-  // — resolving out of order). Not reactive; used only inside loadSnapshots.
+  // (guards against concurrent loads - initial effect plus post-mutation reloads
+  // - resolving out of order). Not reactive; used only inside loadSnapshots.
   let snapLoadSeq = 0;
   let snapName = $state("");
   let snapDesc = $state("");
@@ -622,6 +623,8 @@
       </div>
     </div>
 
+    <DeviceHotplug vm={vm} onChanged={(updated) => (vm = updated)} />
+
     <div class="card snapshots-card">
       <h3>Snapshots</h3>
       {#if snapError}<p class="error">{snapError}</p>{/if}
@@ -787,7 +790,7 @@
         </label>
         <label class="check">
           <input type="checkbox" bind:checked={cloneFull} />
-          <span>Full clone (independent copy — promotes the cloned disks)</span>
+          <span>Full clone (independent copy - promotes the cloned disks)</span>
         </label>
         <label class="field">
           <span>Description (optional)</span>

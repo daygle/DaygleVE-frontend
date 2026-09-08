@@ -33,7 +33,7 @@
 
     // The stream is authorized by a one-time ticket rather than the bearer
     // token in the URL, and EventSource would otherwise retry the (now spent)
-    // ticket forever — so manage reconnection here: mint a fresh ticket for
+    // ticket forever - so manage reconnection here: mint a fresh ticket for
     // every connection and re-open on error with a short backoff.
     let source: EventSource | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -112,7 +112,7 @@
       <Gauge value={node?.cpu_pct ?? 0} label="CPU" showLabel={false} sub={node ? `${node.cpu_count} vCPU` : ""} size={150} />
       <div class="under">
         <Sparkline data={cpuHist} color="var(--brand-cyan)" />
-        <span class="muted small">load {node ? node.load_average.map((l) => l.toFixed(2)).join(" / ") : "—"}</span>
+        <span class="muted small">load {node ? node.load_average.map((l) => l.toFixed(2)).join(" / ") : "-"}</span>
       </div>
     </div>
 
@@ -122,7 +122,7 @@
       <div class="under">
         <Sparkline data={memHist} color="var(--brand-violet)" />
         <span class="muted small">
-          {node ? `${gib(node.memory_used_bytes)} / ${gib(node.memory_total_bytes)} GiB` : "—"}
+          {node ? `${gib(node.memory_used_bytes)} / ${gib(node.memory_total_bytes)} GiB` : "-"}
           {#if node && node.swap_total_bytes}· swap {gib(node.swap_used_bytes)} GiB{/if}
         </span>
       </div>
@@ -133,8 +133,8 @@
     <div class="card io-card">
       <h3>Network I/O</h3>
       <div class="io-vals">
-        <span class="io"><em class="dot rx"></em>↓ {node ? gib(node.net_rx_bps) : "—"} <span class="muted">GiB/s</span></span>
-        <span class="io"><em class="dot tx"></em>↑ {node ? gib(node.net_tx_bps) : "—"} <span class="muted">GiB/s</span></span>
+        <span class="io"><em class="dot rx"></em>↓ {node ? gib(node.net_rx_bps) : "-"} <span class="muted">GiB/s</span></span>
+        <span class="io"><em class="dot tx"></em>↑ {node ? gib(node.net_tx_bps) : "-"} <span class="muted">GiB/s</span></span>
       </div>
       <Sparkline data={netHist} color="var(--brand-indigo)" height={56} />
     </div>
@@ -142,8 +142,8 @@
     <div class="card io-card">
       <h3>Disk I/O</h3>
       <div class="io-vals">
-        <span class="io"><em class="dot rx"></em>read {node ? gib(node.disk_read_bps) : "—"} <span class="muted">GiB/s</span></span>
-        <span class="io"><em class="dot tx"></em>write {node ? gib(node.disk_write_bps) : "—"} <span class="muted">GiB/s</span></span>
+        <span class="io"><em class="dot rx"></em>read {node ? gib(node.disk_read_bps) : "-"} <span class="muted">GiB/s</span></span>
+        <span class="io"><em class="dot tx"></em>write {node ? gib(node.disk_write_bps) : "-"} <span class="muted">GiB/s</span></span>
       </div>
       <Sparkline data={diskHist} color="var(--ok)" height={56} />
     </div>

@@ -151,7 +151,7 @@
           {#each pools as p (p.id)}
             <tr>
               <td class="name">{p.name}</td>
-              <td class="faint">{p.comment ?? "—"}</td>
+              <td class="faint">{p.comment ?? "-"}</td>
               <td>
                 <button class="link" onclick={() => openMembers(p)}>
                   {p.member_count}

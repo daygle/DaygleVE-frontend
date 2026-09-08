@@ -350,7 +350,7 @@
           <p class="hint">
             Expose a host directory inside the container. Both paths are absolute;
             the host directory appears at the container path. Bind mounts are a
-            privileged capability — a read-write mount lets the container modify
+            privileged capability - a read-write mount lets the container modify
             host files.
           </p>
         {/if}

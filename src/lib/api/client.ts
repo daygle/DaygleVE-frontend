@@ -1,7 +1,7 @@
 /**
  * Typed REST client for the DaygleVE backend.
  *
- * Every request/response type is imported from `@daygleve/schema` — the shared
+ * Every request/response type is imported from `@daygleve/schema` - the shared
  * contract published by DaygleVE-schema. This file contains no business logic
  * beyond HTTP plumbing and never redefines a wire shape locally.
  */
@@ -14,6 +14,8 @@ import type {
   BrokerSplitInventory,
   ChangePasswordRequest,
   CloneSnapshotRequest,
+  AttachVmPciRequest,
+  AttachVmUsbRequest,
   CloneVmRequest,
   ConsoleTicket,
   CreateBridgeRequest,
@@ -42,8 +44,10 @@ import type {
   NodeMetrics,
   OperationRecord,
   OperationStatus,
+  PciAssignment,
   PciDevice,
   Pool,
+  ResizeVmDiskRequest,
   CreateResourcePoolRequest,
   ResourcePool,
   ResourcePoolDetail,
@@ -68,10 +72,12 @@ import type {
   UpdateLxcRequest,
   UpdateUserRequest,
   UpdateVmRequest,
+  UsbAssignment,
   UsbDevice,
   User,
   Vlan,
   Vm,
+  VmDisk,
   VmPowerRequest,
   VmSnapshot,
   VmSummary,
@@ -124,6 +130,7 @@ export class DaygleClient {
     method: string,
     path: string,
     body?: unknown,
+    onHeaders?: (headers: Headers) => void,
   ): Promise<T> {
     const headers: Record<string, string> = {};
     if (body !== undefined) headers["content-type"] = "application/json";
@@ -136,6 +143,7 @@ export class DaygleClient {
     });
 
     if (res.status === 204) return undefined as T;
+    onHeaders?.(res.headers);
 
     if (!res.ok) {
       const err = (await res.json().catch(() => ({
@@ -154,8 +162,8 @@ export class DaygleClient {
   /**
    * Upload a raw binary body (a file) to `path`, returning the parsed JSON
    * response. Unlike {@link request} this sends the bytes directly with an
-   * `application/octet-stream` content type — the backend's upload routes read
-   * the request body as the file and stream it to disk — so it must not be used
+   * `application/octet-stream` content type - the backend's upload routes read
+   * the request body as the file and stream it to disk - so it must not be used
    * for JSON endpoints.
    */
   private async upload<T>(path: string, file: Blob): Promise<T> {
@@ -228,7 +236,7 @@ export class DaygleClient {
    * Poll an operation until it reaches a terminal state (succeeded, failed,
    * needs_review, or cancelled) or the attempt budget runs out, returning the
    * latest record either way. Callers should inspect the result with
-   * {@link operationFailureMessage} and surface any failure — a terminal state
+   * {@link operationFailureMessage} and surface any failure - a terminal state
    * other than `succeeded` is not thrown.
    */
   async pollOperation(
@@ -340,6 +348,82 @@ export class DaygleClient {
     }
     return res.text();
   }
+  // --- vm disk hotplug ------------------------------------------------------
+  /** Grow a VM disk's backing zvol (and notify a running guest via blockresize). */
+  resizeVmDisk(id: string, index: number, req: ResizeVmDiskRequest): Promise<Vm> {
+    return this.request(
+      "POST",
+      `/vms/${encodeURIComponent(id)}/disks/${index}/resize`,
+      req,
+    );
+  }
+  /** Hot-attach a new disk to the VM (provisions a zvol in the VM's pool). */
+  attachVmDisk(id: string, disk: VmDisk): Promise<Vm> {
+    return this.request("POST", `/vms/${encodeURIComponent(id)}/disks`, disk);
+  }
+  /** Detach a disk from the VM; the backing zvol and its data are kept. */
+  detachVmDisk(id: string, index: number): Promise<Vm> {
+    return this.request("DELETE", `/vms/${encodeURIComponent(id)}/disks/${index}`);
+  }
+
+  // --- vm device hotplug (USB / PCI passthrough) -----------------------------
+  /** The VM's USB passthrough assignments. */
+  listVmUsbDevices(id: string): Promise<UsbAssignment[]> {
+    return this.request("GET", `/vms/${encodeURIComponent(id)}/usb-devices`);
+  }
+  /** Hot-attach a host USB device (matched by vendor:product) to the VM. */
+  attachVmUsbDevice(id: string, req: AttachVmUsbRequest): Promise<Vm> {
+    return this.request(
+      "POST",
+      `/vms/${encodeURIComponent(id)}/usb-devices`,
+      req,
+    );
+  }
+  /** Detach a USB passthrough device from the VM (the device stays on the host). */
+  detachVmUsbDevice(id: string, vendorId: string, productId: string): Promise<Vm> {
+    const q = `vendor_id=${encodeURIComponent(vendorId)}&product_id=${encodeURIComponent(productId)}`;
+    return this.request(
+      "DELETE",
+      `/vms/${encodeURIComponent(id)}/usb-devices?${q}`,
+    );
+  }
+  /** The VM's PCI passthrough assignments. */
+  listVmPciDevices(id: string): Promise<PciAssignment[]> {
+    return this.request("GET", `/vms/${encodeURIComponent(id)}/pci-devices`);
+  }
+  /** Hot-attach a host PCI function to the VM. */
+  attachVmPciDevice(id: string, req: AttachVmPciRequest): Promise<Vm> {
+    return this.request(
+      "POST",
+      `/vms/${encodeURIComponent(id)}/pci-devices`,
+      req,
+    );
+  }
+  /** Hot-attach PCI and return any IOMMU-group safety warning from the backend. */
+  async attachVmPciDeviceWithWarning(
+    id: string,
+    req: AttachVmPciRequest,
+  ): Promise<{ vm: Vm; warning?: string }> {
+    let warning: string | undefined;
+    const vm = await this.request<Vm>(
+      "POST",
+      `/vms/${encodeURIComponent(id)}/pci-devices`,
+      req,
+      (headers) => {
+        warning = headers.get("warning") ?? undefined;
+      },
+    );
+    return { vm, warning };
+  }
+  /** Detach a PCI passthrough device from the VM. */
+  detachVmPciDevice(id: string, pciAddress: string): Promise<Vm> {
+    const q = `pci_address=${encodeURIComponent(pciAddress)}`;
+    return this.request(
+      "DELETE",
+      `/vms/${encodeURIComponent(id)}/pci-devices?${q}`,
+    );
+  }
+
   listVmSnapshots(id: string): Promise<VmSnapshot[]> {
     return this.request("GET", `/vms/${id}/snapshots`);
   }
@@ -569,8 +653,8 @@ export class DaygleClient {
   }
   /**
    * URL of the SSE metrics stream for a ticket from {@link metricsStreamTicket};
-   * open with `new EventSource(url)`. The one-time ticket — not the long-lived
-   * bearer token — is what rides in the query string.
+   * open with `new EventSource(url)`. The one-time ticket - not the long-lived
+   * bearer token - is what rides in the query string.
    */
   metricsStreamUrl(ticket: string): string {
     return `${this.baseUrl}/metrics/stream?ticket=${encodeURIComponent(ticket)}`;
@@ -581,7 +665,7 @@ export class DaygleClient {
    * `websocket_path` from the ticket already carries the one-time ticket query
    * param. When an origin can be resolved (in the browser, or from an absolute
    * `baseUrl`) the result is absolute and targets the API host, not the page
-   * host. Otherwise — SSR with a relative `baseUrl`, or a parse failure — the
+   * host. Otherwise - SSR with a relative `baseUrl`, or a parse failure - the
    * input path is returned unchanged; an already-absolute ws(s) URL is passed
    * through as-is.
    */

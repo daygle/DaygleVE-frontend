@@ -36,7 +36,7 @@
             <tr>
               <td>{br.name}</td>
               <td>{br.state}</td>
-              <td>{br.ports.join(", ") || "—"}</td>
+              <td>{br.ports.join(", ") || "-"}</td>
               <td>{br.vlan_aware ? "yes" : "no"}</td>
               <td>{br.mtu}</td>
             </tr>
@@ -58,7 +58,7 @@
             <tr>
               <td>{vlan.tag}</td>
               <td>{vlan.bridge}</td>
-              <td>{vlan.name ?? "—"}</td>
+              <td>{vlan.name ?? "-"}</td>
             </tr>
           {/each}
         </tbody>

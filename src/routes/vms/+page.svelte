@@ -128,7 +128,7 @@
     if (e.key === "Escape" && showCreate) closeCreate();
   }
 
-  // Dismiss only when the backdrop itself is clicked, not the dialog contents —
+  // Dismiss only when the backdrop itself is clicked, not the dialog contents -
   // so the dialog needs no click/key handler of its own to stop propagation.
   function onOverlayClick(e: MouseEvent) {
     if (e.target === e.currentTarget) closeCreate();
@@ -263,7 +263,7 @@
               <td>{(vm.memory_mib / 1024).toFixed(1)} GiB</td>
               <td class="actions">
                 {#if vm.template}
-                  <span class="muted">—</span>
+                  <span class="muted">-</span>
                 {:else if vm.state === "running"}
                   <button onclick={() => power(vm.id, "shutdown")}>Shutdown</button>
                 {:else}

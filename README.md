@@ -8,7 +8,7 @@
 <h1 align="center">DaygleVE-frontend</h1>
 
 <p align="center">
-The <strong>web control panel</strong> for <a href="https://github.com/daygle">DaygleVE</a> —
+The <strong>web control panel</strong> for <a href="https://github.com/daygle">DaygleVE</a> -
 a modern, single-node virtualization platform. Built with
 <a href="https://svelte.dev/docs/kit">SvelteKit</a> + TypeScript.
 </p>

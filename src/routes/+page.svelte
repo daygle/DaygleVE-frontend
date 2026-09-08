@@ -100,19 +100,19 @@
       <div class="facts">
         <div class="fact">
           <span class="k">Load average</span>
-          <span class="v">{node ? node.load_average.map((l) => l.toFixed(2)).join("  ") : "—"}</span>
+          <span class="v">{node ? node.load_average.map((l) => l.toFixed(2)).join("  ") : "-"}</span>
         </div>
         <div class="fact">
           <span class="k">Swap</span>
           <span class="v">
-            {#if !node}—
+            {#if !node}-
             {:else if node.swap_total_bytes}{gib(node.swap_used_bytes)} / {gib(node.swap_total_bytes)} GiB
             {:else}none{/if}
           </span>
         </div>
         <div class="fact">
           <span class="k">Network</span>
-          <span class="v">↓ {node ? gib(node.net_rx_bps) : "—"} · ↑ {node ? gib(node.net_tx_bps) : "—"} GiB/s</span>
+          <span class="v">↓ {node ? gib(node.net_rx_bps) : "-"} · ↑ {node ? gib(node.net_tx_bps) : "-"} GiB/s</span>
         </div>
       </div>
     </div>
