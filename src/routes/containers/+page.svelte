@@ -1,6 +1,7 @@
 <script lang="ts">
   import { client } from "$lib/api/session";
   import { ApiRequestError, operationFailureMessage } from "$lib/api";
+  import { parseTags } from "$lib/tags";
   import StateBadge from "$components/StateBadge.svelte";
   import type {
     LxcSummary,
@@ -46,6 +47,7 @@
   let bridge = $state("");
   let unprivileged = $state(true);
   let description = $state("");
+  let tagsInput = $state("");
   let startAfter = $state(true);
   let mounts = $state<LxcMount[]>([]);
 
@@ -133,6 +135,7 @@
         .filter((m) => m.source && m.destination),
       unprivileged,
       description: description.trim() || undefined,
+      tags: parseTags(tagsInput),
       start: startAfter,
     };
     creating = true;
@@ -164,6 +167,7 @@
     bridge = "";
     unprivileged = true;
     description = "";
+    tagsInput = "";
     startAfter = true;
     mounts = [];
   }
@@ -200,7 +204,10 @@
         <tbody>
           {#each containers as ct (ct.id)}
             <tr>
-              <td><a href={`/containers/${ct.id}`}>{ct.name}</a></td>
+              <td>
+                <a href={`/containers/${ct.id}`}>{ct.name}</a>
+                {#if ct.tags}{#each ct.tags as t (t)}<span class="org-tag">{t}</span>{/each}{/if}
+              </td>
               <td><StateBadge state={ct.state} /></td>
               <td>{ct.vcpus}</td>
               <td>{(ct.memory_mib / 1024).toFixed(1)} GiB</td>
@@ -287,6 +294,11 @@
         <label class="field desc">
           <span>Description (optional)</span>
           <input bind:value={description} autocomplete="off" />
+        </label>
+
+        <label class="field desc">
+          <span>Tags <span class="opt">(comma-separated)</span></span>
+          <input bind:value={tagsInput} placeholder="prod, web, env:staging" autocomplete="off" />
         </label>
 
         <label class="check">
@@ -475,6 +487,10 @@
   .field span {
     color: var(--muted);
   }
+  .field .opt {
+    opacity: 0.7;
+    font-size: 0.75rem;
+  }
   .check {
     display: flex;
     align-items: center;
@@ -501,5 +517,16 @@
     justify-content: flex-end;
     gap: 0.6rem;
     margin-top: 1.5rem;
+  }
+  .org-tag {
+    display: inline-block;
+    margin-left: 0.4rem;
+    padding: 0.05rem 0.4rem;
+    font-size: 0.7rem;
+    border-radius: 999px;
+    background: var(--panel-2, rgba(255, 255, 255, 0.06));
+    border: 1px solid var(--border);
+    color: var(--muted);
+    vertical-align: middle;
   }
 </style>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { client } from "$lib/api/session";
   import { ApiRequestError, operationFailureMessage } from "$lib/api";
+  import { parseTags } from "$lib/tags";
   import StateBadge from "$components/StateBadge.svelte";
   import type {
     VmSummary,
@@ -42,6 +43,7 @@
   let memoryMib = $state(2048);
   let firmware = $state<Firmware>("uefi");
   let display = $state<DisplayProtocol>("vnc");
+  let tagsInput = $state("");
   let pool = $state("");
   let diskSizeGib = $state(20);
   let diskBus = $state<DiskBus>("virtio");
@@ -165,6 +167,7 @@
       template: asTemplate,
       autostart: asTemplate ? false : autostart,
       startup_order: !asTemplate && autostart && startupOrder != null ? startupOrder : undefined,
+      tags: parseTags(tagsInput),
     };
 
     creating = true;
@@ -191,6 +194,7 @@
     memoryMib = 2048;
     firmware = "uefi";
     display = "vnc";
+    tagsInput = "";
     diskSizeGib = 20;
     diskBus = "virtio";
     nicModel = "virtio";
@@ -245,6 +249,7 @@
                 <a href={`/vms/${vm.id}`}>{vm.name}</a>
                 {#if vm.template}<span class="tag" title="Clone-only template">Template</span>{/if}
                 {#if vm.autostart && !vm.template}<span class="tag muted-tag" title="Starts on host boot">Autostart</span>{/if}
+                {#if vm.tags}{#each vm.tags as t (t)}<span class="tag org-tag">{t}</span>{/each}{/if}
               </td>
               <td><StateBadge state={vm.state} /></td>
               <td>{vm.vcpus}</td>
@@ -295,6 +300,11 @@
               <option value="vnc">VNC (in-browser console)</option>
               <option value="spice">SPICE (remote-viewer)</option>
             </select>
+          </label>
+
+          <label class="field">
+            <span>Tags <span class="opt">(comma-separated)</span></span>
+            <input bind:value={tagsInput} placeholder="prod, web, env:staging" autocomplete="off" />
           </label>
 
           <label class="field">
@@ -543,6 +553,10 @@
   .field span {
     color: var(--muted);
   }
+  .field .opt {
+    opacity: 0.7;
+    font-size: 0.75rem;
+  }
   .check {
     display: flex;
     align-items: center;
@@ -602,5 +616,13 @@
   .tag.muted-tag {
     background: rgba(255, 255, 255, 0.12);
     color: var(--muted);
+  }
+  .tag.org-tag {
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 500;
+    background: var(--panel-2, rgba(255, 255, 255, 0.06));
+    color: var(--muted);
+    border: 1px solid var(--border);
   }
 </style>

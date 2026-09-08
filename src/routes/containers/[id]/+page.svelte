@@ -4,6 +4,7 @@
   import { goto } from "$app/navigation";
   import { client } from "$lib/api/session";
   import { ApiRequestError } from "$lib/api";
+  import { parseTags, formatTags } from "$lib/tags";
   import StateBadge from "$components/StateBadge.svelte";
   import "@xterm/xterm/css/xterm.css";
   import type { Lxc, LxcPowerAction, UpdateLxcRequest, LxcSnapshot } from "@daygleve/schema";
@@ -31,6 +32,7 @@
   let eVcpus = $state(1);
   let eMemory = $state(512);
   let eDesc = $state("");
+  let eTags = $state("");
   let eNameInput = $state<HTMLInputElement>();
 
   const id = $derived($page.params.id ?? "");
@@ -129,6 +131,7 @@
     eVcpus = ct.vcpus;
     eMemory = ct.memory_mib;
     eDesc = ct.description ?? "";
+    eTags = formatTags(ct.tags);
     showEdit = true;
     await tick();
     eNameInput?.focus();
@@ -150,6 +153,7 @@
       vcpus: eVcpus,
       memory_mib: eMemory,
       description: eDesc.trim() || undefined,
+      tags: parseTags(eTags),
     };
     editBusy = true;
     try {
@@ -252,6 +256,12 @@
       <button class="edit-btn" onclick={openEdit}>Edit</button>
       <button class="edit-btn danger" onclick={remove} disabled={busy}>Delete</button>
     </div>
+
+    {#if ct.tags && ct.tags.length}
+      <div class="tags">
+        {#each ct.tags as tag (tag)}<span class="tag">{tag}</span>{/each}
+      </div>
+    {/if}
 
     <div class="powerbar">
       {#each actions as a (a)}
@@ -370,6 +380,10 @@
           <span>Description</span>
           <input bind:value={eDesc} autocomplete="off" />
         </label>
+        <label class="field desc">
+          <span>Tags <span class="opt">(comma-separated)</span></span>
+          <input bind:value={eTags} placeholder="prod, web, env:staging" autocomplete="off" />
+        </label>
         {#if editError}<p class="error">{editError}</p>{/if}
         <div class="dialog-actions">
           <button type="button" onclick={() => (showEdit = false)} disabled={editBusy}>Cancel</button>
@@ -407,6 +421,20 @@
     border-radius: 6px;
     overflow: hidden;
     padding: 4px;
+  }
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin: -0.4rem 0 0.6rem;
+  }
+  .tag {
+    font-size: 0.72rem;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    background: var(--panel-2, rgba(255, 255, 255, 0.06));
+    border: 1px solid var(--border);
+    color: var(--muted);
   }
   .edit-btn {
     cursor: pointer;
@@ -545,6 +573,10 @@
   }
   .field span {
     color: var(--muted);
+  }
+  .field .opt {
+    opacity: 0.7;
+    font-size: 0.75rem;
   }
   .dialog-actions {
     display: flex;
