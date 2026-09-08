@@ -44,6 +44,11 @@ import type {
   OperationStatus,
   PciDevice,
   Pool,
+  CreateResourcePoolRequest,
+  ResourcePool,
+  ResourcePoolDetail,
+  ResourcePoolSummary,
+  UpdateResourcePoolRequest,
   QuarantineDecisionRequest,
   ReconciliationQuarantineRecord,
   RestoreBackupRequest,
@@ -372,6 +377,23 @@ export class DaygleClient {
   }
   deleteContainerSnapshot(id: string, name: string): Promise<void> {
     return this.request("DELETE", `/containers/${id}/snapshots/${encodeURIComponent(name)}`);
+  }
+
+  // --- resource pools -------------------------------------------------------
+  listResourcePools(): Promise<ResourcePoolSummary[]> {
+    return this.request("GET", "/pools");
+  }
+  getResourcePool(id: string): Promise<ResourcePoolDetail> {
+    return this.request("GET", `/pools/${id}`);
+  }
+  createResourcePool(req: CreateResourcePoolRequest): Promise<ResourcePool> {
+    return this.request("POST", "/pools", req);
+  }
+  updateResourcePool(id: string, req: UpdateResourcePoolRequest): Promise<ResourcePool> {
+    return this.request("PATCH", `/pools/${id}`, req);
+  }
+  deleteResourcePool(id: string): Promise<void> {
+    return this.request("DELETE", `/pools/${id}`);
   }
 
   // --- storage --------------------------------------------------------------

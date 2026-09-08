@@ -9,6 +9,7 @@
     { href: "/", label: "Dashboard", icon: "dashboard" },
     { href: "/vms", label: "Virtual Machines", icon: "vm" },
     { href: "/containers", label: "Containers", icon: "container" },
+    { href: "/pools", label: "Pools", icon: "pool" },
     { href: "/storage", label: "Storage", icon: "storage" },
     { href: "/backups", label: "Backups", icon: "storage" },
     { href: "/network", label: "Network", icon: "network" },

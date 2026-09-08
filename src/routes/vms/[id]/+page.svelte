@@ -18,6 +18,7 @@
     UpdateVmRequest,
     VmSnapshot,
     OperationRecord,
+    ResourcePoolSummary,
   } from "@daygleve/schema";
 
   let vm = $state<Vm | null>(null);
@@ -28,6 +29,7 @@
   let editBusy = $state(false);
   let editError = $state<string | null>(null);
   let pools = $state<Pool[]>([]);
+  let resourcePools = $state<ResourcePoolSummary[]>([]);
   let bridges = $state<Bridge[]>([]);
   let eName = $state("");
   let eVcpus = $state(1);
@@ -36,6 +38,7 @@
   let eDisks = $state<VmDisk[]>([]);
   let eNics = $state<VmNic[]>([]);
   let eTags = $state("");
+  let ePool = $state("");
 
   // Install-media (CD-ROM) state.
   let isos = $state<IsoImage[]>([]);
@@ -233,15 +236,21 @@
     eDisks = vm.disks.map((d) => ({ ...d }));
     eNics = vm.nics.map((n) => ({ ...n }));
     eTags = formatTags(vm.tags);
+    ePool = vm.pool ?? "";
     showEdit = true;
     // Clear first so a failed fetch degrades to empty rather than keeping stale
     // pools/bridges from a previous open (which addDisk/addNic would misuse).
     pools = [];
     bridges = [];
     const c = client();
-    const [p, b] = await Promise.allSettled([c.listPools(), c.listBridges()]);
+    const [p, b, rp] = await Promise.allSettled([
+      c.listPools(),
+      c.listBridges(),
+      c.listResourcePools(),
+    ]);
     if (p.status === "fulfilled") pools = p.value;
     if (b.status === "fulfilled") bridges = b.value;
+    if (rp.status === "fulfilled") resourcePools = rp.value;
   }
 
   function addDisk() {
@@ -285,6 +294,7 @@
       disks: eDisks,
       nics: eNics,
       tags: parseTags(eTags),
+      pool: ePool,
       eject_cdrom: false,
     };
     editBusy = true;
@@ -496,9 +506,10 @@
       <button class="edit-btn" onclick={openClone}>Clone</button>
     </div>
 
-    {#if vm.tags && vm.tags.length}
+    {#if (vm.tags && vm.tags.length) || vm.pool}
       <div class="tags">
-        {#each vm.tags as tag (tag)}<span class="tag">{tag}</span>{/each}
+        {#if vm.pool}<a class="pool-chip" href="/pools" title="Resource pool">▤ {vm.pool}</a>{/if}
+        {#each vm.tags ?? [] as tag (tag)}<span class="tag">{tag}</span>{/each}
       </div>
     {/if}
 
@@ -509,6 +520,7 @@
           <dt>vCPUs</dt><dd>{vm.vcpus}</dd>
           <dt>Memory</dt><dd>{(vm.memory_mib / 1024).toFixed(1)} GiB</dd>
           <dt>Firmware</dt><dd>{vm.firmware.toUpperCase()}</dd>
+          {#if vm.pool}<dt>Pool</dt><dd>{vm.pool}</dd>{/if}
         </dl>
       </div>
       <div class="card">
@@ -691,6 +703,14 @@
           <label class="field"><span>vCPUs</span><input type="number" min="1" bind:value={eVcpus} /></label>
           <label class="field"><span>Memory (MiB)</span><input type="number" min="1" step="128" bind:value={eMemory} /></label>
           <label class="field"><span>Tags</span><input bind:value={eTags} placeholder="prod, web" autocomplete="off" /></label>
+          <label class="field"><span>Resource pool</span>
+            <select bind:value={ePool}>
+              <option value="">None</option>
+              {#each resourcePools as rp (rp.id)}
+                <option value={rp.name}>{rp.name}</option>
+              {/each}
+            </select>
+          </label>
         </div>
 
         <div class="sub-head"><h3>Disks</h3><button type="button" class="add" onclick={addDisk}>+ Add</button></div>
@@ -794,6 +814,18 @@
     background: var(--panel-2, rgba(255, 255, 255, 0.06));
     border: 1px solid var(--border);
     color: var(--muted);
+  }
+  .pool-chip {
+    font-size: 0.72rem;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .pool-chip:hover {
+    text-decoration: underline;
   }
   .edit-btn {
     cursor: pointer;
