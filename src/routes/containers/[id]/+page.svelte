@@ -7,6 +7,7 @@
   import { parseTags, formatTags } from "$lib/tags";
   import StateBadge from "$components/StateBadge.svelte";
   import ScheduleManager from "$components/ScheduleManager.svelte";
+  import SnapshotScheduleManager from "$components/SnapshotScheduleManager.svelte";
   import "@xterm/xterm/css/xterm.css";
   import type {
     Lxc,
@@ -368,6 +369,10 @@
 
     <div class="card">
       <ScheduleManager targetKind="lxc" targetId={ct.id} />
+    </div>
+
+    <div class="card">
+      <SnapshotScheduleManager targetKind="lxc" targetId={ct.id} />
     </div>
   {:else if !error}
     <p class="muted">Loading…</p>

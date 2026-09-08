@@ -53,6 +53,9 @@ import type {
   ScheduleTarget,
   CreatePowerScheduleRequest,
   UpdatePowerScheduleRequest,
+  SnapshotSchedule,
+  CreateSnapshotScheduleRequest,
+  UpdateSnapshotScheduleRequest,
   QuarantineDecisionRequest,
   ReconciliationQuarantineRecord,
   RestoreBackupRequest,
@@ -416,6 +419,27 @@ export class DaygleClient {
   }
   deleteSchedule(id: string): Promise<void> {
     return this.request("DELETE", `/schedules/${id}`);
+  }
+
+  // --- snapshot schedules ---------------------------------------------------
+  listSnapshotSchedules(
+    targetKind?: ScheduleTarget,
+    targetId?: string,
+  ): Promise<SnapshotSchedule[]> {
+    const q = new URLSearchParams();
+    if (targetKind) q.set("target_kind", targetKind);
+    if (targetId) q.set("target_id", targetId);
+    const qs = q.toString();
+    return this.request("GET", `/snapshot-schedules${qs ? `?${qs}` : ""}`);
+  }
+  createSnapshotSchedule(req: CreateSnapshotScheduleRequest): Promise<SnapshotSchedule> {
+    return this.request("POST", "/snapshot-schedules", req);
+  }
+  updateSnapshotSchedule(id: string, req: UpdateSnapshotScheduleRequest): Promise<SnapshotSchedule> {
+    return this.request("PATCH", `/snapshot-schedules/${id}`, req);
+  }
+  deleteSnapshotSchedule(id: string): Promise<void> {
+    return this.request("DELETE", `/snapshot-schedules/${id}`);
   }
 
   // --- storage --------------------------------------------------------------
