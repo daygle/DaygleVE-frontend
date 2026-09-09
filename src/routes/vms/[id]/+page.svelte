@@ -3,7 +3,7 @@
   import { page } from "$app/stores";
   import { goto } from "$app/navigation";
   import { client } from "$lib/api/session";
-  import { ApiRequestError } from "$lib/api";
+  import { ApiRequestError, operationFailureMessage } from "$lib/api";
   import { parseTags, formatTags } from "$lib/tags";
   import StateBadge from "$components/StateBadge.svelte";
   import ScheduleManager from "$components/ScheduleManager.svelte";
@@ -47,7 +47,10 @@
   let isos = $state<IsoImage[]>([]);
   let selectedIso = $state("");
   let mediaBusy = $state(false);
-
+  // --- disk migration ---
+  let migratingIndex = $state<number | null>(null);
+  let migrateTarget = $state("");
+  let migrateError = $state<string | null>(null);
   // --- clone modal ---
   let showClone = $state(false);
   let cloneName = $state("");
@@ -209,6 +212,32 @@
 
   function isoName(path: string): string {
     return isos.find((i) => i.path === path)?.name ?? path;
+  }
+
+  async function migrateDisk(index: number) {
+    const target = migrateTarget.trim();
+    migrateError = null;
+    if (!target) {
+      migrateError = "Enter a target dataset, e.g. slowpool/vms/web01-disk0.";
+      return;
+    }
+    if (!confirm(`Move disk ${index} to ${target}? The VM must stay stopped; the old dataset is destroyed after the copy.`))
+      return;
+    migratingIndex = index;
+    try {
+      const op = await client().migrateVmDisk(id, { disk_index: index, target_dataset: target });
+      const result = await client().pollOperation(op, { attempts: 3600, intervalMs: 2000 });
+      const failure = operationFailureMessage(result);
+      if (failure) migrateError = `Migration failed: ${failure}`;
+      else {
+        migrateTarget = "";
+        await reload();
+      }
+    } catch (e) {
+      migrateError = e instanceof ApiRequestError ? e.body.message : String(e);
+    } finally {
+      migratingIndex = null;
+    }
   }
 
   function fmtBytes(n: number): string {
@@ -534,6 +563,36 @@
               <li>{disk.dataset} · {disk.size_gib} GiB · {disk.bus}</li>
             {/each}
           </ul>
+          <details class="migrate-box">
+            <summary class="muted small">Move a disk to another dataset or pool</summary>
+            <label class="field">
+              <span>Target dataset</span>
+              <input
+                bind:value={migrateTarget}
+                autocomplete="off"
+                placeholder="slowpool/vms/web01-disk0"
+              />
+            </label>
+            <label class="field">
+              <span>Disk index</span>
+              <select bind:value={migratingIndex}>
+                {#each vm.disks as disk, i (i)}
+                  <option value={i}>{i}: {disk.dataset}</option>
+                {/each}
+              </select>
+            </label>
+            <button
+              class="primary"
+              disabled={migratingIndex === null || vm.state === "running"}
+              onclick={() => migratingIndex !== null && migrateDisk(migratingIndex)}
+            >
+              {migratingIndex === null ? "Migrate" : "Migrating…"}
+            </button>
+            {#if vm.state === "running"}
+              <p class="muted small">Stop the VM to migrate a disk.</p>
+            {/if}
+            {#if migrateError}<p class="error small">{migrateError}</p>{/if}
+          </details>
         {:else}<p class="muted">None</p>{/if}
       </div>
       <div class="card">
@@ -813,6 +872,13 @@
     display: flex;
     align-items: center;
     gap: 0.75rem;
+  }
+  .migrate-box {
+    margin-top: 0.8rem;
+  }
+  .migrate-box summary {
+    cursor: pointer;
+    margin-bottom: 0.5rem;
   }
   .tags {
     display: flex;
