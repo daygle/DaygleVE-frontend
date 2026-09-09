@@ -8,12 +8,21 @@
     ShareType,
     CreateShareRequest,
     StorageFile,
+    RawDisk,
+    PoolLayout,
   } from "@daygleve/schema";
 
   let pools = $state<Pool[]>([]);
   let datasets = $state<Dataset[]>([]);
   let shares = $state<NetworkShare[]>([]);
   let error = $state<string | null>(null);
+  let rawDisks = $state<RawDisk[]>([]);
+  let poolName = $state("");
+  let poolLayout = $state<PoolLayout>("mirror");
+  let poolDevices = $state<string[]>([]);
+  let creatingPool = $state(false);
+  let wipingPath = $state<string | null>(null);
+  let smartReports = $state<Record<string, string>>({});
 
   // --- media library (uploaded ISOs + CT templates + disk images) ---
   let libIsos = $state<StorageFile[]>([]);
@@ -75,10 +84,11 @@
 
   $effect(() => {
     const c = client();
-    Promise.all([c.listPools(), c.listDatasets()])
-      .then(([p, d]) => {
+    Promise.all([c.listPools(), c.listDatasets(), c.listRawDisks()])
+      .then(([p, d, disks]) => {
         pools = p;
         datasets = d;
+        rawDisks = disks;
       })
       .catch((e) => (error = e instanceof ApiRequestError ? e.body.message : String(e)));
     loadShares();
@@ -236,6 +246,42 @@
     }
   }
 
+  async function showSmart(disk: RawDisk) {
+    try {
+      const report = await client().smartReport(disk.path);
+      smartReports = { ...smartReports, [disk.path]: report.supported ? (report.passed === false ? "FAILED" : report.health ?? "PASSED") : "unsupported" };
+    } catch (e) {
+      smartReports = { ...smartReports, [disk.path]: e instanceof ApiRequestError ? e.body.message : String(e) };
+    }
+  }
+
+  async function wipe(disk: RawDisk) {
+    if (disk.in_use || !confirm(`Wipe filesystem signatures from ${disk.path}? This is destructive.`)) return;
+    wipingPath = disk.path;
+    try {
+      await client().wipeDisk({ path: disk.path, confirm: disk.path });
+      rawDisks = rawDisks.map((d) => d.path === disk.path ? { ...d, in_use: false } : d);
+    } catch (e) {
+      error = e instanceof ApiRequestError ? e.body.message : String(e);
+    } finally {
+      wipingPath = null;
+    }
+  }
+
+  async function createPool(e: SubmitEvent) {
+    e.preventDefault();
+    if (!poolName.trim() || poolDevices.length === 0) { error = "Enter a pool name and select at least one unused disk."; return; }
+    creatingPool = true;
+    try {
+      const op = await client().createPool({ name: poolName.trim(), layout: poolLayout, devices: poolDevices, force: false });
+      const result = await client().pollOperation(op, { attempts: 120, intervalMs: 1000 });
+      const failure = operationFailureMessage(result);
+      if (failure) error = `Pool creation failed: ${failure}`;
+      else { poolName = ""; poolDevices = []; pools = await client().listPools(); rawDisks = await client().listRawDisks(); }
+    } catch (e) { error = e instanceof ApiRequestError ? e.body.message : String(e); }
+    finally { creatingPool = false; }
+  }
+
   function addr(s: NetworkShare): string {
     return s.share_type === "nfs" ? `${s.server}:${s.export_path}` : `//${s.server}/${s.export_path}`;
   }
@@ -257,6 +303,49 @@
     {:else}
       <p class="muted">No pools found.</p>
     {/each}
+  </div>
+
+  <h2>Raw disks</h2>
+  <div class="card">
+    <p class="muted lede">Review physical disks, run SMART checks, wipe signatures, and select unused disks for a new ZFS pool. Wiping and pool creation are destructive operations.</p>
+    {#if rawDisks.length === 0}
+      <p class="muted">No physical disks found.</p>
+    {:else}
+      <table>
+        <thead><tr><th>Device</th><th>Model</th><th>Size</th><th>State</th><th>SMART</th><th></th></tr></thead>
+        <tbody>
+          {#each rawDisks as disk (disk.path)}
+            <tr>
+              <td class="mono">{disk.path}</td>
+              <td>{disk.model || "-"}{#if disk.serial}<span class="muted small"> ({disk.serial})</span>{/if}</td>
+              <td>{gib(disk.size_bytes)} GiB</td>
+              <td>{disk.in_use ? "In use" : "Available"}</td>
+              <td>{smartReports[disk.path] ?? "-"}</td>
+              <td class="row-actions">
+                <button onclick={() => showSmart(disk)}>SMART</button>
+                <button disabled={disk.in_use || wipingPath === disk.path} onclick={() => wipe(disk)}>{wipingPath === disk.path ? "Wiping…" : "Wipe signatures"}</button>
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    {/if}
+  </div>
+
+  <div class="card">
+    <h3>Create ZFS pool</h3>
+    <form onsubmit={createPool}>
+      <div class="grid-form">
+        <label class="field"><span>Name</span><input bind:value={poolName} placeholder="fastpool" /></label>
+        <label class="field"><span>Layout</span><select bind:value={poolLayout}><option value="stripe">Stripe</option><option value="mirror">Mirror</option><option value="raidz1">RAIDZ1</option><option value="raidz2">RAIDZ2</option><option value="raidz3">RAIDZ3</option></select></label>
+      </div>
+      <div class="disk-select">
+        {#each rawDisks.filter((d) => !d.in_use) as disk (disk.path)}
+          <label><input type="checkbox" value={disk.path} checked={poolDevices.includes(disk.path)} onchange={(e) => { poolDevices = e.currentTarget.checked ? [...poolDevices, disk.path] : poolDevices.filter((p) => p !== disk.path); }} /> <span class="mono">{disk.path}</span> ({gib(disk.size_bytes)} GiB)</label>
+        {/each}
+      </div>
+      <div class="form-actions"><button type="submit" class="primary" disabled={creatingPool}>{creatingPool ? "Creating…" : "Create pool"}</button></div>
+    </form>
   </div>
 
   <h2>Datasets</h2>
@@ -519,6 +608,17 @@
 {/if}
 
 <style>
+  .disk-select {
+    display: grid;
+    gap: 0.45rem;
+    margin-top: 0.8rem;
+  }
+  .disk-select label {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  .small { font-size: 0.78rem; }
   .bar {
     height: 8px;
     border-radius: 999px;
