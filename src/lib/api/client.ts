@@ -19,6 +19,7 @@ import type {
   ApiToken,
   CreateApiTokenRequest,
   CreateApiTokenResponse,
+  AuditEvent,
   BrokerSplitInventory,
   ChangePasswordRequest,
   CloneSnapshotRequest,
@@ -240,6 +241,12 @@ export class DaygleClient {
   /** Read-only view of the current broker split posture (security inventory). */
   brokerSplitInventory(): Promise<BrokerSplitInventory> {
     return this.request("GET", "/system/broker-split");
+  }
+
+  // --- audit log ------------------------------------------------------------
+  /** Recent security audit events, newest first (limit 1..=1000). */
+  listAudit(limit = 200): Promise<AuditEvent[]> {
+    return this.request("GET", `/audit?limit=${encodeURIComponent(String(limit))}`);
   }
 
   // --- acme (automatic TLS) -------------------------------------------------

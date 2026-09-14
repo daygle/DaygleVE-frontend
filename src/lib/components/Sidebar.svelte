@@ -26,6 +26,7 @@
       ? [
           ...baseLinks,
           { href: "/security", label: "Security", icon: "lock" },
+          { href: "/audit", label: "Audit log", icon: "audit" },
           { href: "/users", label: "Users", icon: "users" },
         ]
       : baseLinks,
