@@ -14,6 +14,8 @@ import type {
   BackupPlan,
   BindGpuRequest,
   Bridge,
+  HostFirewall,
+  UpdateHostFirewallRequest,
   AcmeStatus,
   UpdateAcmeConfigRequest,
   ApiToken,
@@ -770,6 +772,14 @@ export class DaygleClient {
   }
   createVlan(req: CreateVlanRequest): Promise<OperationRecord> {
     return this.request("POST", "/network/vlans", req);
+  }
+  /** The host (node) firewall configuration. */
+  getFirewall(): Promise<HostFirewall> {
+    return this.request("GET", "/network/firewall");
+  }
+  /** Replace and apply the host firewall configuration. */
+  updateFirewall(req: UpdateHostFirewallRequest): Promise<HostFirewall> {
+    return this.request("PUT", "/network/firewall", req);
   }
 
   // --- gpus -----------------------------------------------------------------
