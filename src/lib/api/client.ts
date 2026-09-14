@@ -16,6 +16,9 @@ import type {
   Bridge,
   AcmeStatus,
   UpdateAcmeConfigRequest,
+  ApiToken,
+  CreateApiTokenRequest,
+  CreateApiTokenResponse,
   BrokerSplitInventory,
   ChangePasswordRequest,
   CloneSnapshotRequest,
@@ -306,6 +309,20 @@ export class DaygleClient {
   }
   changePassword(req: ChangePasswordRequest): Promise<void> {
     return this.request("POST", "/auth/change-password", req);
+  }
+
+  // --- api tokens -----------------------------------------------------------
+  /** The caller's own API tokens (metadata only; never the secret). */
+  listApiTokens(): Promise<ApiToken[]> {
+    return this.request("GET", "/tokens");
+  }
+  /** Create an API token. The response carries the raw secret once. */
+  createApiToken(req: CreateApiTokenRequest): Promise<CreateApiTokenResponse> {
+    return this.request("POST", "/tokens", req);
+  }
+  /** Revoke one of the caller's API tokens. */
+  deleteApiToken(id: string): Promise<void> {
+    return this.request("DELETE", `/tokens/${encodeURIComponent(id)}`);
   }
 
   // --- users ----------------------------------------------------------------
