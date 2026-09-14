@@ -22,6 +22,10 @@ import type {
   AuditEvent,
   BrokerSplitInventory,
   ChangePasswordRequest,
+  ConfirmTwoFactorRequest,
+  DisableTwoFactorRequest,
+  TwoFactorSetupResponse,
+  TwoFactorEnabledResponse,
   CloneSnapshotRequest,
   AttachVmPciRequest,
   AttachVmUsbRequest,
@@ -318,6 +322,26 @@ export class DaygleClient {
   }
   changePassword(req: ChangePasswordRequest): Promise<void> {
     return this.request("POST", "/auth/change-password", req);
+  }
+
+  // --- two-factor (TOTP) ----------------------------------------------------
+  /**
+   * Begin TOTP enrollment: returns a fresh shared secret and `otpauth://` URI.
+   * The second factor is not active until confirmed with {@link twoFactorConfirm}.
+   */
+  twoFactorSetup(): Promise<TwoFactorSetupResponse> {
+    return this.request("POST", "/auth/2fa/setup");
+  }
+  /**
+   * Confirm TOTP enrollment with a code from the authenticator; on success the
+   * second factor is enabled and one-time recovery codes are returned.
+   */
+  twoFactorConfirm(req: ConfirmTwoFactorRequest): Promise<TwoFactorEnabledResponse> {
+    return this.request("POST", "/auth/2fa/confirm", req);
+  }
+  /** Disable the second factor after verifying a current TOTP (or recovery) code. */
+  twoFactorDisable(req: DisableTwoFactorRequest): Promise<void> {
+    return this.request("POST", "/auth/2fa/disable", req);
   }
 
   // --- api tokens -----------------------------------------------------------
