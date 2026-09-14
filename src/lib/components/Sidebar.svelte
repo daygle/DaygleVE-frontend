@@ -22,7 +22,11 @@
   // enforces the permission regardless.
   const links = $derived(
     $auth.user?.roles.includes("admin")
-      ? [...baseLinks, { href: "/users", label: "Users", icon: "users" }]
+      ? [
+          ...baseLinks,
+          { href: "/security", label: "Security", icon: "lock" },
+          { href: "/users", label: "Users", icon: "users" },
+        ]
       : baseLinks,
   );
 
