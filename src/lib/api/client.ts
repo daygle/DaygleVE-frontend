@@ -81,6 +81,8 @@ import type {
   UpdateNotificationChannelRequest,
   ImportDiskImageRequest,
   ImportDiskImageResponse,
+  FetchDiskImageRequest,
+  DiskImageFetch,
   QuarantineDecisionRequest,
   ReconciliationQuarantineRecord,
   RestoreBackupRequest,
@@ -722,6 +724,14 @@ export class DaygleClient {
   /** Import an uploaded disk image into a new zvol usable as a VM disk. */
   importDiskImage(req: ImportDiskImageRequest): Promise<ImportDiskImageResponse> {
     return this.request("POST", "/storage/disk-images/import", req);
+  }
+  /** Start downloading a disk image from a URL into the library (background). */
+  fetchDiskImage(req: FetchDiskImageRequest): Promise<DiskImageFetch> {
+    return this.request("POST", "/storage/disk-images/fetch", req);
+  }
+  /** Status of recent/in-progress disk-image URL fetches, newest first. */
+  listDiskImageFetches(): Promise<DiskImageFetch[]> {
+    return this.request("GET", "/storage/disk-images/fetches");
   }
 
   // --- network --------------------------------------------------------------

@@ -10,6 +10,7 @@
     StorageFile,
     RawDisk,
     PoolLayout,
+    DiskImageFetch,
   } from "@daygleve/schema";
 
   let pools = $state<Pool[]>([]);
@@ -40,6 +41,12 @@
   let importing = $state(false);
   let importError = $state<string | null>(null);
   let importResult = $state<string | null>(null);
+
+  // --- fetch a disk image from a URL ---
+  let fetchUrl = $state("");
+  let fetchName = $state("");
+  let fetching = $state(false);
+  let fetches = $state<DiskImageFetch[]>([]);
 
   // --- add-share form ---
   let showAdd = $state(false);
@@ -82,6 +89,46 @@
     }
   }
 
+  async function loadFetches() {
+    try {
+      fetches = await client().listDiskImageFetches();
+    } catch {
+      // Non-fatal: the fetch list is a convenience view.
+    }
+  }
+
+  // Poll fetch status while any download is in progress, refreshing the
+  // disk-image list as each completes.
+  $effect(() => {
+    if (!fetches.some((f) => f.state === "downloading")) return;
+    const timer = setInterval(async () => {
+      await loadFetches();
+      await loadLibrary();
+    }, 3000);
+    return () => clearInterval(timer);
+  });
+
+  async function startFetch(e: SubmitEvent) {
+    e.preventDefault();
+    libraryError = null;
+    const url = fetchUrl.trim();
+    if (!url) {
+      libraryError = "Enter a URL to fetch.";
+      return;
+    }
+    fetching = true;
+    try {
+      await client().fetchDiskImage({ url, name: fetchName.trim() || undefined });
+      fetchUrl = "";
+      fetchName = "";
+      await loadFetches();
+    } catch (e) {
+      libraryError = e instanceof ApiRequestError ? e.body.message : String(e);
+    } finally {
+      fetching = false;
+    }
+  }
+
   $effect(() => {
     const c = client();
     Promise.all([c.listPools(), c.listDatasets(), c.listRawDisks()])
@@ -93,6 +140,7 @@
       .catch((e) => (error = e instanceof ApiRequestError ? e.body.message : String(e)));
     loadShares();
     loadLibrary();
+    loadFetches();
   });
 
   // Upload the picked file under its own name, then refresh the list. The input
@@ -478,6 +526,50 @@
           </tbody>
         </table>
       {/if}
+
+      <form class="fetch" onsubmit={startFetch}>
+        <div class="fetch-row">
+          <input
+            bind:value={fetchUrl}
+            type="url"
+            placeholder="https://cloud-images.example/focal.img"
+            aria-label="Disk image URL"
+          />
+          <input
+            bind:value={fetchName}
+            placeholder="Save as (optional)"
+            aria-label="Save as file name"
+            class="fetch-name"
+          />
+          <button type="submit" class="primary" disabled={fetching}>
+            {fetching ? "Starting…" : "Fetch from URL"}
+          </button>
+        </div>
+        <span class="muted small">Downloads run in the background. Port 80/443 to the source must be reachable.</span>
+      </form>
+
+      {#if fetches.length > 0}
+        <table class="fetches">
+          <thead><tr><th>Download</th><th>Status</th></tr></thead>
+          <tbody>
+            {#each fetches as f (f.id)}
+              <tr>
+                <td class="mono">{f.name}</td>
+                <td>
+                  <span class="pill pill-{f.state}">{f.state}</span>
+                  {#if f.state === "downloading" && f.total_bytes}
+                    {gib(f.bytes_downloaded)} / {gib(f.total_bytes)} GiB
+                  {:else if f.state === "completed"}
+                    {gib(f.bytes_downloaded)} GiB
+                  {:else if f.state === "failed"}
+                    <span class="muted small">{f.error ?? "failed"}</span>
+                  {/if}
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      {/if}
     </div>
   </div>
 
@@ -753,5 +845,55 @@
     justify-content: flex-end;
     gap: 0.6rem;
     margin-top: 1rem;
+  }
+  .fetch {
+    margin-top: 0.8rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .fetch-row {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .fetch-row input {
+    font: inherit;
+    padding: 0.4rem 0.55rem;
+    background: var(--bg-2, rgba(0, 0, 0, 0.2));
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--fg);
+    flex: 1;
+    min-width: 12rem;
+  }
+  .fetch-row .fetch-name {
+    flex: 0 1 12rem;
+  }
+  table.fetches {
+    margin-top: 0.8rem;
+  }
+  .pill {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.05rem 0.45rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    text-transform: capitalize;
+    margin-right: 0.4rem;
+  }
+  .pill-completed {
+    color: #34d399;
+    border-color: #34d39955;
+  }
+  .pill-downloading {
+    color: #fbbf24;
+    border-color: #fbbf2455;
+  }
+  .pill-failed {
+    color: #f87171;
+    border-color: #f8717155;
   }
 </style>
