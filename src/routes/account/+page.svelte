@@ -2,7 +2,7 @@
   import { client } from "$lib/api/session";
   import { ApiRequestError } from "$lib/api";
   import { auth } from "$lib/stores/auth";
-  import type { ApiToken, Permission } from "@daygleve/schema";
+  import type { ApiToken, Permission, TwoFactorSetupResponse } from "@daygleve/schema";
 
   let currentPassword = $state("");
   let newPassword = $state("");
@@ -26,16 +26,95 @@
   let createdSecret = $state<string | null>(null);
   let copied = $state(false);
 
+  // --- two-factor (TOTP) ---
+  let twoFaEnabled = $state(false);
+  // The pending enrollment (secret + otpauth URI) while confirming; null otherwise.
+  let twoFaSetup = $state<TwoFactorSetupResponse | null>(null);
+  let twoFaConfirmCode = $state("");
+  let twoFaDisableCode = $state("");
+  let twoFaError = $state<string | null>(null);
+  let twoFaBusy = $state(false);
+  let secretCopied = $state(false);
+  // Recovery codes shown once, right after enabling; cleared when dismissed.
+  let recoveryCodes = $state<string[] | null>(null);
+
   $effect(() => {
     client()
       .me()
       .then((me) => {
         mustChange = me.must_change_password ?? false;
         myPermissions = me.permissions;
+        twoFaEnabled = me.two_factor_enabled ?? false;
       })
       .catch(() => {});
     loadTokens();
   });
+
+  async function startTwoFa() {
+    twoFaError = null;
+    recoveryCodes = null;
+    twoFaBusy = true;
+    try {
+      twoFaSetup = await client().twoFactorSetup();
+      twoFaConfirmCode = "";
+      secretCopied = false;
+    } catch (e) {
+      twoFaError = e instanceof ApiRequestError ? e.body.message : String(e);
+    } finally {
+      twoFaBusy = false;
+    }
+  }
+
+  function cancelTwoFaSetup() {
+    twoFaSetup = null;
+    twoFaConfirmCode = "";
+    twoFaError = null;
+  }
+
+  async function confirmTwoFa(e: SubmitEvent) {
+    e.preventDefault();
+    twoFaError = null;
+    if (!twoFaConfirmCode.trim()) return (twoFaError = "Enter the 6-digit code.");
+    twoFaBusy = true;
+    try {
+      const res = await client().twoFactorConfirm({ code: twoFaConfirmCode.trim() });
+      recoveryCodes = res.recovery_codes;
+      twoFaEnabled = true;
+      twoFaSetup = null;
+      twoFaConfirmCode = "";
+    } catch (e) {
+      twoFaError = e instanceof ApiRequestError ? e.body.message : String(e);
+    } finally {
+      twoFaBusy = false;
+    }
+  }
+
+  async function disableTwoFa(e: SubmitEvent) {
+    e.preventDefault();
+    twoFaError = null;
+    if (!twoFaDisableCode.trim()) return (twoFaError = "Enter a current code to confirm.");
+    twoFaBusy = true;
+    try {
+      await client().twoFactorDisable({ code: twoFaDisableCode.trim() });
+      twoFaEnabled = false;
+      twoFaDisableCode = "";
+      recoveryCodes = null;
+    } catch (e) {
+      twoFaError = e instanceof ApiRequestError ? e.body.message : String(e);
+    } finally {
+      twoFaBusy = false;
+    }
+  }
+
+  async function copySecret2fa() {
+    if (!twoFaSetup) return;
+    try {
+      await navigator.clipboard.writeText(twoFaSetup.secret);
+      secretCopied = true;
+    } catch {
+      // Clipboard may be unavailable; the secret is still shown for manual entry.
+    }
+  }
 
   async function loadTokens() {
     try {
@@ -176,6 +255,98 @@
         </button>
       </div>
     </form>
+  </div>
+
+  <div class="card">
+    <h2>Two-factor authentication</h2>
+    <p class="faint sub">
+      Add a time-based one-time code (TOTP) from an authenticator app as a second
+      factor on top of your password. You'll be asked for a code each time you sign in.
+    </p>
+
+    {#if twoFaError}<p class="error">{twoFaError}</p>{/if}
+
+    {#if recoveryCodes}
+      <div class="secret">
+        <div class="secret-head">
+          <strong>Save your recovery codes now — they won't be shown again.</strong>
+        </div>
+        <p class="faint sub" style="margin:0 0 0.5rem">
+          Each code works once. Use one to sign in if you lose access to your authenticator.
+        </p>
+        <ul class="codes">
+          {#each recoveryCodes as code (code)}
+            <li class="mono">{code}</li>
+          {/each}
+        </ul>
+        <div class="actions">
+          <button class="small" onclick={() => (recoveryCodes = null)}>Done</button>
+        </div>
+      </div>
+    {/if}
+
+    {#if twoFaEnabled}
+      {#if !recoveryCodes}
+        <p class="status-on">✓ Two-factor authentication is enabled.</p>
+        <form onsubmit={disableTwoFa}>
+          <label class="field">
+            <span>Enter a current code to disable</span>
+            <input
+              bind:value={twoFaDisableCode}
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              placeholder="123456 or a recovery code"
+            />
+          </label>
+          <div class="actions">
+            <button type="submit" class="danger" disabled={twoFaBusy}>
+              {twoFaBusy ? "Disabling…" : "Disable two-factor"}
+            </button>
+          </div>
+        </form>
+      {/if}
+    {:else if twoFaSetup}
+      <div class="enroll">
+        <p class="faint sub" style="margin-top:0">
+          In your authenticator app, add an account using this secret (issuer
+          <span class="mono">DaygleVE</span>):
+        </p>
+        <div class="secret">
+          <div class="secret-head">
+            <strong>Setup key</strong>
+            <button class="small" onclick={copySecret2fa}>{secretCopied ? "Copied" : "Copy"}</button>
+          </div>
+          <code class="secret-value">{twoFaSetup.secret}</code>
+        </div>
+        <p class="faint sub">
+          Or open the provisioning link on the device running your authenticator:
+          <a class="mono link" href={twoFaSetup.otpauth_uri}>otpauth://…</a>
+        </p>
+        <form onsubmit={confirmTwoFa}>
+          <label class="field">
+            <span>Enter the current code to finish enrolling</span>
+            <input
+              bind:value={twoFaConfirmCode}
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              placeholder="123456"
+            />
+          </label>
+          <div class="actions two">
+            <button type="button" class="small" onclick={cancelTwoFaSetup}>Cancel</button>
+            <button type="submit" class="primary" disabled={twoFaBusy}>
+              {twoFaBusy ? "Verifying…" : "Enable two-factor"}
+            </button>
+          </div>
+        </form>
+      </div>
+    {:else}
+      <div class="actions">
+        <button class="primary" onclick={startTwoFa} disabled={twoFaBusy}>
+          {twoFaBusy ? "Preparing…" : "Enable two-factor"}
+        </button>
+      </div>
+    {/if}
   </div>
 
   <div class="card">
@@ -411,5 +582,44 @@
     display: flex;
     justify-content: flex-end;
     margin-top: 0.5rem;
+  }
+  .actions.two {
+    justify-content: space-between;
+  }
+  button.danger {
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    padding: 0.45rem 0.8rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+  }
+  button.danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--danger) 12%, transparent);
+  }
+  .status-on {
+    color: #34d399;
+    font-size: 0.9rem;
+    margin: 0 0 0.8rem;
+  }
+  .link {
+    color: var(--brand, #38bdf8);
+    word-break: break-all;
+  }
+  .codes {
+    list-style: none;
+    margin: 0 0 0.5rem;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 0.3rem 0.8rem;
+  }
+  .codes li {
+    background: var(--bg-2, rgba(0, 0, 0, 0.25));
+    padding: 0.3rem 0.5rem;
+    border-radius: 5px;
+    text-align: center;
+    letter-spacing: 0.03em;
   }
 </style>
