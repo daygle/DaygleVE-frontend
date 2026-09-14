@@ -7,6 +7,9 @@
  */
 import type {
   ApiError,
+  AlertMetric,
+  AlertRule,
+  AlertScope,
   BackupArtifact,
   BackupPlan,
   BindGpuRequest,
@@ -42,13 +45,20 @@ import type {
   LxcSummary,
   LoginRequest,
   LoginResponse,
+  MigrateVmDiskRequest,
+  MigrateLxcRootfsRequest,
   NetworkShare,
   NodeMetrics,
+  GuestMetricsSample,
   OperationRecord,
   OperationStatus,
   PciAssignment,
   PciDevice,
   Pool,
+  RawDisk,
+  SmartReport,
+  CreatePoolRequest,
+  WipeDiskRequest,
   ResizeVmDiskRequest,
   CreateResourcePoolRequest,
   ResourcePool,
@@ -383,6 +393,14 @@ export class DaygleClient {
   detachVmDisk(id: string, index: number): Promise<Vm> {
     return this.request("DELETE", `/vms/${encodeURIComponent(id)}/disks/${index}`);
   }
+  /** Move one of the VM's disks to another ZFS dataset/pool (VM must be stopped). */
+  migrateVmDisk(id: string, req: MigrateVmDiskRequest): Promise<OperationRecord> {
+    return this.request("POST", `/vms/${encodeURIComponent(id)}/disks/migrate`, req);
+  }
+  /** Move a container's rootfs to another ZFS dataset/pool (must be stopped). */
+  migrateContainerRootfs(id: string, req: MigrateLxcRootfsRequest): Promise<OperationRecord> {
+    return this.request("POST", `/containers/${encodeURIComponent(id)}/rootfs/migrate`, req);
+  }
 
   // --- vm device hotplug (USB / PCI passthrough) -----------------------------
   /** The VM's USB passthrough assignments. */
@@ -567,9 +585,55 @@ export class DaygleClient {
     return this.request("POST", `/notifications/${id}/test`);
   }
 
+  // --- metric threshold alert rules ------------------------------------------
+  listAlertRules(): Promise<AlertRule[]> {
+    return this.request("GET", "/alerts");
+  }
+  createAlertRule(req: {
+    name: string;
+    enabled?: boolean;
+    scope: AlertScope;
+    guest_id?: string;
+    metric: AlertMetric;
+    threshold: number;
+    sustain_ticks?: number;
+    cooldown_secs?: number;
+  }): Promise<AlertRule> {
+    return this.request("POST", "/alerts", req);
+  }
+  updateAlertRule(
+    id: string,
+    req: {
+      name?: string;
+      enabled?: boolean;
+      guest_id?: string | null;
+      metric?: AlertMetric;
+      threshold?: number;
+      sustain_ticks?: number;
+      cooldown_secs?: number;
+    },
+  ): Promise<AlertRule> {
+    return this.request("PATCH", `/alerts/${encodeURIComponent(id)}`, req);
+  }
+  deleteAlertRule(id: string): Promise<void> {
+    return this.request("DELETE", `/alerts/${encodeURIComponent(id)}`);
+  }
+
   // --- storage --------------------------------------------------------------
   listPools(): Promise<Pool[]> {
     return this.request("GET", "/storage/pools");
+  }
+  createPool(req: CreatePoolRequest): Promise<OperationRecord> {
+    return this.request("POST", "/storage/pools", req);
+  }
+  listRawDisks(): Promise<RawDisk[]> {
+    return this.request("GET", "/storage/disks");
+  }
+  smartReport(path: string): Promise<SmartReport> {
+    return this.request("GET", `/storage/disks/smart?path=${encodeURIComponent(path)}`);
+  }
+  wipeDisk(req: WipeDiskRequest): Promise<void> {
+    return this.request("POST", "/storage/disks/wipe", req);
   }
   listDatasets(): Promise<Dataset[]> {
     return this.request("GET", "/storage/datasets");
@@ -674,6 +738,15 @@ export class DaygleClient {
   // --- metrics --------------------------------------------------------------
   nodeMetrics(): Promise<NodeMetrics> {
     return this.request("GET", "/metrics/node");
+  }
+  currentGuestMetrics(): Promise<GuestMetricsSample[]> {
+    return this.request("GET", "/metrics/guests");
+  }
+  historyGuestMetrics(opts: { scope?: "vm" | "lxc"; guest_id?: string; from?: string; to?: string } = {}): Promise<GuestMetricsSample[]> {
+    const q = new URLSearchParams();
+    for (const [key, value] of Object.entries(opts)) if (value) q.set(key, value);
+    const query = q.toString();
+    return this.request("GET", `/metrics/history${query ? `?${query}` : ""}`);
   }
   /**
    * Mint a short-lived, one-time ticket for the SSE metrics stream. The bearer

@@ -16,6 +16,7 @@
     { href: "/metrics", label: "Metrics", icon: "metrics" },
     { href: "/operations", label: "Operations", icon: "operations" },
     { href: "/notifications", label: "Notifications", icon: "bell" },
+    { href: "/alerts", label: "Alert rules", icon: "bell" },
   ];
 
   // The Users admin link only shows for accounts with the admin role; the API

@@ -3,11 +3,12 @@
   import { client } from "$lib/api/session";
   import Gauge from "$components/Gauge.svelte";
   import Sparkline from "$components/Sparkline.svelte";
-  import type { MetricsEvent, NodeMetrics } from "@daygleve/schema";
+  import type { GuestMetricsSample, MetricsEvent, NodeMetrics } from "@daygleve/schema";
 
   let node = $state<NodeMetrics | null>(null);
   let error = $state<string | null>(null);
   let live = $state(false);
+  let guests = $state<GuestMetricsSample[]>([]);
 
   // Rolling history for the sparklines (most recent last).
   const CAP = 48;
@@ -57,6 +58,12 @@
         es.onmessage = (ev) => {
           try {
             const frame = JSON.parse(ev.data) as MetricsEvent;
+            if (frame.scope !== "node" && frame.guest) {
+              const next = frame.guest;
+              guests = guests.some((sample) => sample.scope === frame.scope && sample.metrics.id === next.id)
+                ? guests.map((sample) => sample.scope === frame.scope && sample.metrics.id === next.id ? { scope: frame.scope, metrics: next } : sample)
+                : [...guests, { scope: frame.scope, metrics: next }];
+            }
             if (frame.scope === "node" && frame.node) {
               const n = frame.node;
               node = n;
@@ -149,6 +156,28 @@
     </div>
   </div>
 
+  <div class="card guest-card">
+    <div class="section-head compact"><h2>Guest metrics</h2><span class="muted small">15-second samples · 7-day retention</span></div>
+    {#if guests.length === 0}
+      <p class="muted">No guest samples yet. Start a VM or container and wait for the next sample.</p>
+    {:else}
+      <table>
+        <thead><tr><th>Guest</th><th>CPU</th><th>Memory</th><th>Disk read/write</th><th>Network rx/tx</th></tr></thead>
+        <tbody>
+          {#each guests as sample (`${sample.scope}-${sample.metrics.id}`)}
+            <tr>
+              <td><span class="pill">{sample.scope}</span> <span class="mono">{sample.metrics.id}</span></td>
+              <td>{sample.metrics.cpu_pct.toFixed(1)}%</td>
+              <td>{gib(sample.metrics.memory_used_bytes)} / {gib(sample.metrics.memory_max_bytes)} GiB</td>
+              <td>{gib(sample.metrics.disk_read_bps)} / {gib(sample.metrics.disk_write_bps)} GiB/s</td>
+              <td>{gib(sample.metrics.net_rx_bps)} / {gib(sample.metrics.net_tx_bps)} GiB/s</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    {/if}
+  </div>
+
   {#if node}
     <p class="muted small ts">Sampled {new Date(node.timestamp).toLocaleTimeString()} · streaming live over SSE</p>
   {/if}
@@ -212,6 +241,17 @@
   }
   .dot.tx {
     background: var(--brand-cyan);
+  }
+  .guest-card {
+    margin-bottom: 1rem;
+    overflow-x: auto;
+  }
+  .section-head.compact {
+    margin-top: 0;
+  }
+  .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.8rem;
   }
   .ts {
     margin-top: 0.5rem;
