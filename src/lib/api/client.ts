@@ -14,6 +14,8 @@ import type {
   BackupPlan,
   BindGpuRequest,
   Bridge,
+  AcmeStatus,
+  UpdateAcmeConfigRequest,
   BrokerSplitInventory,
   ChangePasswordRequest,
   CloneSnapshotRequest,
@@ -235,6 +237,20 @@ export class DaygleClient {
   /** Read-only view of the current broker split posture (security inventory). */
   brokerSplitInventory(): Promise<BrokerSplitInventory> {
     return this.request("GET", "/system/broker-split");
+  }
+
+  // --- acme (automatic TLS) -------------------------------------------------
+  /** Current ACME/TLS certificate configuration and status. */
+  acmeStatus(): Promise<AcmeStatus> {
+    return this.request("GET", "/security/acme");
+  }
+  /** Replace the ACME configuration; returns the resulting status. */
+  updateAcmeConfig(req: UpdateAcmeConfigRequest): Promise<AcmeStatus> {
+    return this.request("PUT", "/security/acme/config", req);
+  }
+  /** Trigger certificate issuance/renewal now (runs in the background). */
+  issueAcme(): Promise<AcmeStatus> {
+    return this.request("POST", "/security/acme/issue");
   }
 
   // --- operations -----------------------------------------------------------
