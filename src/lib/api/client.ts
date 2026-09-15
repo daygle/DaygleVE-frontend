@@ -12,6 +12,8 @@ import type {
   AlertScope,
   BackupArtifact,
   BackupPlan,
+  AclEntry,
+  CreateAclEntryRequest,
   BindGpuRequest,
   Bridge,
   HostFirewall,
@@ -372,6 +374,20 @@ export class DaygleClient {
   }
   deleteUser(id: string): Promise<void> {
     return this.request("DELETE", `/users/${id}`);
+  }
+
+  // --- access control (ACL) -------------------------------------------------
+  /** All path-scoped ACL entries. */
+  listAcl(): Promise<AclEntry[]> {
+    return this.request("GET", "/acl");
+  }
+  /** Grant a role on a path to a user. */
+  createAcl(req: CreateAclEntryRequest): Promise<AclEntry> {
+    return this.request("POST", "/acl", req);
+  }
+  /** Revoke one ACL entry. */
+  deleteAcl(id: string): Promise<void> {
+    return this.request("DELETE", `/acl/${encodeURIComponent(id)}`);
   }
 
   // --- vms ------------------------------------------------------------------

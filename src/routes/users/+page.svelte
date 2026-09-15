@@ -1,7 +1,13 @@
 <script lang="ts">
   import { client } from "$lib/api/session";
   import { ApiRequestError } from "$lib/api";
-  import type { User, Role, CreateUserRequest, UpdateUserRequest } from "@daygleve/schema";
+  import type {
+    User,
+    Role,
+    CreateUserRequest,
+    UpdateUserRequest,
+    AclEntry,
+  } from "@daygleve/schema";
 
   const ALL_ROLES: Role[] = ["admin", "operator", "viewer"];
 
@@ -9,6 +15,15 @@
   let error = $state<string | null>(null);
   let loading = $state(true);
   let forbidden = $state(false);
+
+  // access control (ACL)
+  let acl = $state<AclEntry[]>([]);
+  let aclError = $state<string | null>(null);
+  let aPath = $state("/vms/");
+  let aSubject = $state("");
+  let aRole = $state<Role>("viewer");
+  let aPropagate = $state(true);
+  let aBusy = $state(false);
 
   // create modal
   let showCreate = $state(false);
@@ -26,7 +41,9 @@
   async function load() {
     loading = true;
     try {
-      users = await client().listUsers();
+      const c = client();
+      users = await c.listUsers();
+      acl = await c.listAcl();
       error = null;
       forbidden = false;
     } catch (e) {
@@ -58,7 +75,7 @@
     formError = null;
     if (!cName.trim()) return (formError = "Username is required.");
     if (cPassword.length < 8) return (formError = "Password must be at least 8 characters.");
-    if (cRoles.length === 0) return (formError = "Select at least one role.");
+    // Empty roles are allowed: a scoped-only user gets access from ACL grants.
     const req: CreateUserRequest = { username: cName.trim(), password: cPassword, roles: cRoles };
     busy = true;
     try {
@@ -83,7 +100,7 @@
     e.preventDefault();
     if (!editing) return;
     formError = null;
-    if (eRoles.length === 0) return (formError = "Select at least one role.");
+    // Empty roles are allowed (scoped-only user); access can come from ACL grants.
     if (eNewPassword && eNewPassword.length < 8)
       return (formError = "Password must be at least 8 characters.");
     const req: UpdateUserRequest = { roles: eRoles };
@@ -107,6 +124,43 @@
       await load();
     } catch (e) {
       error = e instanceof ApiRequestError ? e.body.message : String(e);
+    }
+  }
+
+  function userName(id: string): string {
+    return users.find((u) => u.id === id)?.username ?? id;
+  }
+
+  async function addAcl(e: SubmitEvent) {
+    e.preventDefault();
+    aclError = null;
+    if (!aSubject) return (aclError = "Choose a user to grant to.");
+    if (!aPath.trim()) return (aclError = "Enter a path (e.g. /vms/<id>).");
+    aBusy = true;
+    try {
+      await client().createAcl({
+        path: aPath.trim(),
+        subject: aSubject,
+        role: aRole,
+        propagate: aPropagate,
+      });
+      aPath = "/vms/";
+      await load();
+    } catch (err) {
+      aclError = err instanceof ApiRequestError ? err.body.message : String(err);
+    } finally {
+      aBusy = false;
+    }
+  }
+
+  async function removeAcl(entry: AclEntry) {
+    if (!confirm(`Revoke ${entry.role} on ${entry.path} from ${userName(entry.subject)}?`)) return;
+    aclError = null;
+    try {
+      await client().deleteAcl(entry.id);
+      await load();
+    } catch (e) {
+      aclError = e instanceof ApiRequestError ? e.body.message : String(e);
     }
   }
 
@@ -140,7 +194,7 @@
           {#each users as u (u.id)}
             <tr>
               <td>{u.username}</td>
-              <td>{u.roles.join(", ")}</td>
+              <td>{u.roles.length ? u.roles.join(", ") : "— scoped only"}</td>
               <td class="faint">{u.created_at.slice(0, 10)}</td>
               <td class="faint">{u.last_login_at ? u.last_login_at.slice(0, 16).replace("T", " ") : "-"}</td>
               <td class="row-actions">
@@ -153,6 +207,74 @@
       </table>
     {/if}
   </div>
+
+  {#if !forbidden && !loading}
+    <h2 class="acl-head">Access control</h2>
+    <p class="muted acl-sub">
+      Grant a role on a resource path. A grant at <span class="mono">/</span> is node-wide (the
+      user's roles above); a grant at <span class="mono">/vms/&lt;id&gt;</span> or
+      <span class="mono">/pools/&lt;id&gt;</span> scopes access to that resource. With
+      propagation on, the grant also covers everything beneath the path.
+    </p>
+
+    {#if aclError}<p class="error">{aclError}</p>{/if}
+
+    <div class="card">
+      {#if acl.length === 0}
+        <p class="muted">No path-scoped grants. Users have only their node-wide roles above.</p>
+      {:else}
+        <table>
+          <thead>
+            <tr><th>User</th><th>Path</th><th>Role</th><th>Propagates</th><th></th></tr>
+          </thead>
+          <tbody>
+            {#each acl as entry (entry.id)}
+              <tr>
+                <td>{entry.subject_username ?? userName(entry.subject)}</td>
+                <td class="mono">{entry.path}</td>
+                <td>{entry.role}</td>
+                <td>{entry.propagate ? "yes" : "no"}</td>
+                <td class="row-actions">
+                  <button onclick={() => removeAcl(entry)}>Revoke</button>
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      {/if}
+
+      <form class="acl-form" onsubmit={addAcl}>
+        <label class="field">
+          <span>User</span>
+          <select bind:value={aSubject}>
+            <option value="" disabled>Choose a user…</option>
+            {#each users as u (u.id)}
+              <option value={u.id}>{u.username}</option>
+            {/each}
+          </select>
+        </label>
+        <label class="field">
+          <span>Path</span>
+          <input bind:value={aPath} class="mono" placeholder="/vms/&lt;id&gt;" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span>Role</span>
+          <select bind:value={aRole}>
+            {#each ALL_ROLES as role (role)}
+              <option value={role}>{role}</option>
+            {/each}
+          </select>
+        </label>
+        <label class="check propagate">
+          <input type="checkbox" bind:checked={aPropagate} />
+          <span>Propagate to descendants</span>
+        </label>
+        <button type="submit" class="primary" disabled={aBusy}>
+          {aBusy ? "Granting…" : "Grant"}
+        </button>
+      </form>
+    </div>
+  {/if}
 </div>
 
 {#if showCreate}
@@ -295,5 +417,43 @@
     justify-content: flex-end;
     gap: 0.6rem;
     margin-top: 1.2rem;
+  }
+  .acl-head {
+    margin-top: 2rem;
+  }
+  .acl-sub {
+    font-size: 0.85rem;
+    margin: 0 0 0.8rem;
+  }
+  .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.82rem;
+  }
+  .acl-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.8rem;
+    border-top: 1px solid var(--border);
+    padding-top: 1rem;
+    margin-top: 0.5rem;
+  }
+  .acl-form .field {
+    margin-bottom: 0;
+    min-width: 150px;
+    flex: 1;
+  }
+  .acl-form select,
+  .acl-form input {
+    padding: 0.4rem 0.5rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--fg);
+    font-size: 0.85rem;
+  }
+  .propagate {
+    white-space: nowrap;
+    padding-bottom: 0.4rem;
   }
 </style>
