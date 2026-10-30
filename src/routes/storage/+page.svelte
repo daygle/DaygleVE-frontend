@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { client } from "$lib/api/session";
-  import { ApiRequestError, operationFailureMessage } from "$lib/api";
+  import { client } from "#lib/api/session.ts";
+  import { ApiRequestError, operationFailureMessage } from "#lib/api/index.ts";
   import type {
     Pool,
     Dataset,

@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { browser } from "$app/environment";
-  import { client } from "$lib/api/session";
-  import Gauge from "$components/Gauge.svelte";
-  import Sparkline from "$components/Sparkline.svelte";
+  import { browser } from "$app/env";
+  import { client } from "#lib/api/session.ts";
+  import Gauge from "#lib/components/Gauge.svelte";
+  import Sparkline from "#lib/components/Sparkline.svelte";
   import type { GuestMetricsSample, MetricsEvent, NodeMetrics } from "@daygleve/schema";
 
   let node = $state<NodeMetrics | null>(null);

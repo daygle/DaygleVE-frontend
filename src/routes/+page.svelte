@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { client } from "$lib/api/session";
-  import { ApiRequestError } from "$lib/api";
-  import Icon from "$components/Icon.svelte";
-  import Gauge from "$components/Gauge.svelte";
+  import { client } from "#lib/api/session.ts";
+  import { ApiRequestError } from "#lib/api/index.ts";
+  import Icon from "#lib/components/Icon.svelte";
+  import Gauge from "#lib/components/Gauge.svelte";
   import type {
     VmSummary,
     LxcSummary,

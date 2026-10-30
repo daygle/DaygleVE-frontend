@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { DaygleClient, ApiRequestError } from "$lib/api";
-  import { auth } from "$lib/stores/auth";
+  import { DaygleClient, ApiRequestError } from "#lib/api/index.ts";
+  import { auth } from "#lib/stores/auth.ts";
   import { goto } from "$app/navigation";
-  import Logo from "$components/Logo.svelte";
+  import Logo from "#lib/components/Logo.svelte";
 
   let username = $state("admin");
   let password = $state("");

@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { client } from "$lib/api/session";
-  import { ApiRequestError } from "$lib/api";
+  import { client } from "#lib/api/session.ts";
+  import { ApiRequestError } from "#lib/api/index.ts";
   import type {
     NotificationChannel,
     NotificationChannelKind,

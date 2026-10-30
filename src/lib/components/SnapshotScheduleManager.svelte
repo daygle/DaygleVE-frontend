@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { client } from "$lib/api/session";
-  import { ApiRequestError } from "$lib/api";
-  import { WEEKDAYS, buildCron, describeCron } from "$lib/cron";
+  import { client } from "#lib/api/session.ts";
+  import { ApiRequestError } from "#lib/api/index.ts";
+  import { WEEKDAYS, buildCron, describeCron } from "#lib/cron.ts";
   import type {
     SnapshotSchedule,
     ScheduleTarget,
