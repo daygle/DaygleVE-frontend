@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { client } from "$lib/api/session";
-  import { ApiRequestError, operationFailureMessage } from "$lib/api";
-  import { parseTags } from "$lib/tags";
-  import StateBadge from "$components/StateBadge.svelte";
+  import { client } from "#lib/api/session.ts";
+  import { ApiRequestError, operationFailureMessage } from "#lib/api/index.ts";
+  import { parseTags } from "#lib/tags.ts";
+  import StateBadge from "#lib/components/StateBadge.svelte";
   import type {
     VmSummary,
     VmPowerAction,

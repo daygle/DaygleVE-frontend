@@ -1,13 +1,13 @@
 <script lang="ts">
   import { tick, onDestroy } from "svelte";
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { goto } from "$app/navigation";
-  import { client } from "$lib/api/session";
-  import { ApiRequestError, operationFailureMessage } from "$lib/api";
-  import { parseTags, formatTags } from "$lib/tags";
-  import StateBadge from "$components/StateBadge.svelte";
-  import ScheduleManager from "$components/ScheduleManager.svelte";
-  import SnapshotScheduleManager from "$components/SnapshotScheduleManager.svelte";
+  import { client } from "#lib/api/session.ts";
+  import { ApiRequestError, operationFailureMessage } from "#lib/api/index.ts";
+  import { parseTags, formatTags } from "#lib/tags.ts";
+  import StateBadge from "#lib/components/StateBadge.svelte";
+  import ScheduleManager from "#lib/components/ScheduleManager.svelte";
+  import SnapshotScheduleManager from "#lib/components/SnapshotScheduleManager.svelte";
   import "@xterm/xterm/css/xterm.css";
   import type {
     Lxc,
@@ -48,7 +48,7 @@
   let resourcePools = $state<ResourcePoolSummary[]>([]);
   let eNameInput = $state<HTMLInputElement>();
 
-  const id = $derived($page.params.id ?? "");
+  const id = $derived(page.params.id ?? "");
 
   async function reload() {
     try {

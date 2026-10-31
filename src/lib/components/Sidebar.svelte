@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { page } from "$app/stores";
+  import { page } from "$app/state";
   import { goto } from "$app/navigation";
-  import { auth } from "$lib/stores/auth";
-  import Logo from "$components/Logo.svelte";
-  import Icon from "$components/Icon.svelte";
+  import { auth } from "#lib/stores/auth.ts";
+  import Logo from "#lib/components/Logo.svelte";
+  import Icon from "#lib/components/Icon.svelte";
 
   const baseLinks = [
     { href: "/", label: "Dashboard", icon: "dashboard" },
@@ -39,7 +39,7 @@
 
   async function signOut() {
     try {
-      await (await import("$lib/api/session")).client().logout();
+      await (await import("#lib/api/session.ts")).client().logout();
     } catch {
       // Clear local credentials even when the node is unavailable.
     } finally {
@@ -58,7 +58,7 @@
     <ul>
       {#each links as link (link.href)}
         <li>
-          <a href={link.href} class:active={isActive(link.href, $page.url.pathname)}>
+          <a href={link.href} class:active={isActive(link.href, page.url.pathname)}>
             <Icon name={link.icon} />
             <span>{link.label}</span>
           </a>

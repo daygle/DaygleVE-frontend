@@ -4,7 +4,7 @@
  * requests by constructing a `DaygleClient` with `get(auth).token`.
  */
 import { writable } from "svelte/store";
-import { browser } from "$app/environment";
+import { browser } from "$app/env";
 import type { User } from "@daygleve/schema";
 
 const STORAGE_KEY = "daygleve.auth";

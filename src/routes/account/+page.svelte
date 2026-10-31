@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { client } from "$lib/api/session";
-  import { ApiRequestError } from "$lib/api";
-  import { auth } from "$lib/stores/auth";
+  import { client } from "#lib/api/session.ts";
+  import { ApiRequestError } from "#lib/api/index.ts";
+  import { auth } from "#lib/stores/auth.ts";
   import type { ApiToken, Permission, TwoFactorSetupResponse } from "@daygleve/schema";
 
   let currentPassword = $state("");

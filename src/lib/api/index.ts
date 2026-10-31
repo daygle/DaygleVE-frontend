@@ -8,5 +8,5 @@ export {
 export type { ClientOptions, MetricsStreamTicket } from "./client";
 
 // Re-export the shared schema types so app code can import them from one place:
-//   import type { Vm, VmState } from "$lib/api";
+//   import type { Vm, VmState } from "#lib/api/index.ts";
 export type * from "@daygleve/schema";

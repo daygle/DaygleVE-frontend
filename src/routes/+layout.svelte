@@ -1,16 +1,16 @@
 <script lang="ts">
   import "../app.css";
-  import Sidebar from "$components/Sidebar.svelte";
-  import { auth } from "$lib/stores/auth";
-  import { page } from "$app/stores";
+  import Sidebar from "#lib/components/Sidebar.svelte";
+  import { auth } from "#lib/stores/auth.ts";
+  import { page } from "$app/state";
   import { goto } from "$app/navigation";
-  import { browser } from "$app/environment";
+  import { browser } from "$app/env";
 
   let { children } = $props();
 
   // Simple client-side guard: unauthenticated users are sent to /login for any
   // route other than /login itself.
-  const isLogin = $derived($page.url.pathname === "/login");
+  const isLogin = $derived(page.url.pathname === "/login");
 
   $effect(() => {
     if (browser && !$auth.token && !isLogin) {

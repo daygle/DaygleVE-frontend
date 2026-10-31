@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { browser } from "$app/environment";
-  import { client } from "$lib/api/session";
-  import { auth } from "$lib/stores/auth";
-  import { ApiRequestError } from "$lib/api";
+  import { browser } from "$app/env";
+  import { client } from "#lib/api/session.ts";
+  import { auth } from "#lib/stores/auth.ts";
+  import { ApiRequestError } from "#lib/api/index.ts";
   import type { OperationRecord, OperationStatus } from "@daygleve/schema";
 
   let operations = $state<OperationRecord[]>([]);
